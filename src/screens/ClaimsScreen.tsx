@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Icon } from "../components/Icon";
+import { shadowMd, shadowSm } from "../constants/shadows";
 
 const claims = [
   {
@@ -164,8 +165,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     paddingVertical: 16,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   statValue: {
     fontSize: 20,
@@ -185,8 +185,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     gap: 16,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-    elevation: 3,
+    ...shadowMd,
   },
   claimHeader: {
     flexDirection: "row",

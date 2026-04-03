@@ -2,9 +2,31 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "types": ["nativewind/types"],
+    "types": [
+      "nativewind/types"
+    ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
-  }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/components/ui/**/*",
+    "src/pages/**/*",
+    "src/main.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "src/test/**/*",
+    "src/App.tsx",
+    "src/lib/**/*",
+    "src/hooks/use-toast.ts",
+    "src/hooks/use-mobile.tsx",
+    "index.html"
+  ]
 }

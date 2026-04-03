@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, StyleSheet, SafeAreaView } from "react-native";
 import { Icon } from "../components/Icon";
+import { shadowSm } from "../constants/shadows";
 
 const alerts = [
   { icon: "cloud-queue", title: "Heavy Rain Warning", desc: "40mm+ expected in Koramangala area. Auto-claim enabled.", time: "2 min ago", severity: "high" as const },
@@ -87,8 +88,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
     paddingVertical: 16,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   alertIcon: {
     width: 40,

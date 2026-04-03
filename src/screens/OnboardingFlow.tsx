@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, SafeAreaView } from "react-native";
 import { Icon } from "../components/Icon";
+import { shadowSm } from "../constants/shadows";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -498,8 +499,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     gap: 12,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   confirmRow: {
     flexDirection: "row",

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Icon } from "../components/Icon";
+import { shadowMd, shadowSm } from "../constants/shadows";
 
 const liveDataColors: Record<string, string> = {
   "bg-si-red-50": "#fef2f2",
@@ -256,8 +257,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginRight: 12,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   liveIcon: {
     width: 36,
@@ -340,8 +340,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     gap: 8,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   quickActionIcon: {
     width: 40,
@@ -359,8 +358,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 16,
     padding: 20,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-    elevation: 3,
+    ...shadowMd,
   },
   riskHeader: {
     flexDirection: "row",
@@ -429,8 +427,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginRight: 12,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   forecastDay: {
     fontSize: 10,
@@ -464,8 +461,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     marginTop: 12,
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    elevation: 1,
+    ...shadowSm,
   },
   payoutIcon: {
     width: 40,

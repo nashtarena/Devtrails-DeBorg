@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
 import { Icon } from "../components/Icon";
+import { shadowMd } from "../constants/shadows";
 
 const ProfileScreen = () => {
   return (
@@ -116,8 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     gap: 12,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-    elevation: 3,
+    ...shadowMd,
   },
   policyTitle: {
     fontSize: 12,
@@ -152,8 +152,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 16,
     overflow: "hidden",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.08)",
-    elevation: 3,
+    ...shadowMd,
   },
   menuItem: {
     width: "100%",

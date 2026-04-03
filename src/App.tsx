@@ -53,7 +53,7 @@ const App = () => {
   const showBottomNav = ["home", "activity", "alerts", "profile"].includes(screen);
 
   return (
-    <View style={styles.container} suppressHydrationWarning>
+    <View style={styles.container}>
       {renderScreen()}
       {showBottomNav && (
         <BottomNav

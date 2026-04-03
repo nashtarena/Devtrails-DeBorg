@@ -1,8 +1,6 @@
 import React from "react";
 import { Platform } from "react-native";
-
-// For web, we'll use simple HTML elements styled as icons
-// For native, we use MaterialIcons
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 interface IconProps {
   name: string;
@@ -10,31 +8,97 @@ interface IconProps {
   color: string;
 }
 
-const iconMap: Record<string, string> = {
-  "home": "🏠",
-  "timeline": "📊",
-  "notifications": "🔔",
-  "person": "👤",
-  "security": "🔒",
+/** Emoji fallback for web preview */
+const webEmojiMap: Record<string, string> = {
+  home: "🏠",
+  timeline: "📊",
+  notifications: "🔔",
+  person: "👤",
+  security: "🔒",
   "chevron-right": "→",
-  "check": "✓",
+  check: "✓",
   "cloud-queue": "☁️",
-  "thermostat": "🌡️",
-  "air": "💨",
+  thermostat: "🌡️",
+  air: "💨",
   "directions-car": "🚗",
-  "warning": "⚠️",
-  "close": "✕",
-  "menu": "☰",
+  warning: "⚠️",
+  close: "✕",
+  menu: "☰",
   "arrow-back": "←",
-  "edit": "✎",
-  "delete": "🗑️",
-  "add": "+",
+  edit: "✎",
+  delete: "🗑️",
+  add: "+",
   "location-on": "📍",
+  smartphone: "📱",
+  work: "💼",
+  "verified-user": "✓",
+  "account-balance-wallet": "💳",
+  "credit-card": "💳",
+  "check-circle": "✓",
+  "water-drop": "💧",
+  grain: "🌾",
+  "wb-sunny": "☀️",
+  "trending-up": "📈",
+  description: "📄",
+  analytics: "📊",
+  map: "🗺️",
+  cloud: "☁️",
+  phone: "📞",
+  help: "❓",
+  logout: "🚪",
+  schedule: "⏰",
+  error: "⚠️",
+  "error-outline": "⚠️",
+};
+
+/**
+ * Maps app icon aliases to valid @expo/vector-icons MaterialIcons names.
+ * See: https://icons.expo.fyi/Index/MaterialIcons
+ */
+const materialNameMap: Record<string, string> = {
+  security: "security",
+  home: "home",
+  timeline: "timeline",
+  notifications: "notifications",
+  person: "person",
+  "chevron-right": "chevron-right",
+  check: "check",
+  "cloud-queue": "cloud-queue",
+  thermostat: "thermostat",
+  air: "air",
+  "directions-car": "directions-car",
+  warning: "warning",
+  close: "close",
+  menu: "menu",
+  "arrow-back": "arrow-back",
+  edit: "edit",
+  delete: "delete",
+  add: "add",
+  "location-on": "location-on",
+  smartphone: "smartphone",
+  work: "work",
+  "verified-user": "verified-user",
+  "account-balance-wallet": "account-balance-wallet",
+  "credit-card": "credit-card",
+  "check-circle": "check-circle",
+  "water-drop": "water-drop",
+  grain: "grain",
+  "wb-sunny": "wb-sunny",
+  "trending-up": "trending-up",
+  description: "description",
+  analytics: "analytics",
+  map: "map",
+  cloud: "cloud",
+  phone: "phone",
+  help: "help-outline",
+  logout: "logout",
+  schedule: "schedule",
+  error: "error",
+  "error-outline": "error-outline",
 };
 
 const MaterialIconWeb: React.FC<IconProps> = ({ name, size, color }) => {
-  const emoji = iconMap[name] || "•";
-  
+  const emoji = webEmojiMap[name] || "•";
   return (
     <span
       style={{
@@ -44,7 +108,7 @@ const MaterialIconWeb: React.FC<IconProps> = ({ name, size, color }) => {
         width: size,
         height: size,
         fontSize: size * 0.8,
-        color: color,
+        color,
         lineHeight: 1,
       }}
     >
@@ -53,16 +117,13 @@ const MaterialIconWeb: React.FC<IconProps> = ({ name, size, color }) => {
   );
 };
 
-// Main Icon component that works on both web and native
 export const Icon: React.FC<IconProps> = ({ name, size, color }) => {
-  // On web, use our simple emoji-based icons
-  // On native, it will use the @expo/vector-icons/MaterialIcons
   if (Platform.OS === "web") {
     return <MaterialIconWeb name={name} size={size} color={color} />;
   }
 
-  // This shouldn't be reached on web, but fallback just in case
-  return <MaterialIconWeb name={name} size={size} color={color} />;
+  const glyph = materialNameMap[name] ?? name;
+  return <MaterialIcons name={glyph as any} size={size} color={color} />;
 };
 
 export default Icon;

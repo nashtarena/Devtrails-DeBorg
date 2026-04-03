@@ -2,14 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
-// Note: lovable-tagger is optional and not required for web builds
-let plugins: any[] = [react()];
-try {
-  const { componentTagger } = require("lovable-tagger");
-  plugins = [react(), componentTagger()];
-} catch (e) {
-  // lovable-tagger not available, continue without it
-}
+const plugins = [react()];
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
