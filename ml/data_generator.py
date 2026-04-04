@@ -1,8 +1,10 @@
 """
-GigShield - Synthetic Training Data Generator (Delhi NCR)
-Generates realistic worker-week records for:
-  1. Premium risk model (regression)
-  2. Fraud / anti-spoofing model (anomaly + classification)
+GigShield - Synthetic Training Data Generator
+
+Two models:
+  1. Premium model  — what the worker pays weekly (based on income + zone + work type)
+  2. Claim model    — how much they receive when a disruption triggers (based on severity + income)
+  3. Fraud model    — anti-spoofing pipeline
 """
 
 import numpy as np
@@ -12,115 +14,117 @@ from pathlib import Path
 RNG = np.random.default_rng(42)
 
 ZONES = {
-    "Connaught Place":    {"base_disruption_freq": 0.28, "flood_risk": 0.30, "fog_risk": 0.55, "heat_risk": 0.70, "aqi_base": 0.72},
-    "Lajpat Nagar":       {"base_disruption_freq": 0.32, "flood_risk": 0.45, "fog_risk": 0.50, "heat_risk": 0.68, "aqi_base": 0.75},
-    "Rohini":             {"base_disruption_freq": 0.35, "flood_risk": 0.50, "fog_risk": 0.70, "heat_risk": 0.72, "aqi_base": 0.80},
-    "Dwarka":             {"base_disruption_freq": 0.38, "flood_risk": 0.60, "fog_risk": 0.65, "heat_risk": 0.70, "aqi_base": 0.78},
-    "Saket":              {"base_disruption_freq": 0.25, "flood_risk": 0.35, "fog_risk": 0.50, "heat_risk": 0.65, "aqi_base": 0.70},
-    "Janakpuri":          {"base_disruption_freq": 0.30, "flood_risk": 0.40, "fog_risk": 0.60, "heat_risk": 0.68, "aqi_base": 0.76},
-    "Shahdara":           {"base_disruption_freq": 0.40, "flood_risk": 0.65, "fog_risk": 0.60, "heat_risk": 0.72, "aqi_base": 0.85},
-    "Noida Sector 18":    {"base_disruption_freq": 0.30, "flood_risk": 0.45, "fog_risk": 0.58, "heat_risk": 0.70, "aqi_base": 0.74},
-    "Gurugram Sector 29": {"base_disruption_freq": 0.28, "flood_risk": 0.50, "fog_risk": 0.55, "heat_risk": 0.68, "aqi_base": 0.72},
-    "Mayur Vihar":        {"base_disruption_freq": 0.35, "flood_risk": 0.55, "fog_risk": 0.58, "heat_risk": 0.70, "aqi_base": 0.80},
-    "Karol Bagh":         {"base_disruption_freq": 0.33, "flood_risk": 0.42, "fog_risk": 0.55, "heat_risk": 0.72, "aqi_base": 0.82},
-    "Vasant Kunj":        {"base_disruption_freq": 0.22, "flood_risk": 0.30, "fog_risk": 0.48, "heat_risk": 0.65, "aqi_base": 0.68},
+    "Connaught Place":    {"disruption_freq": 0.28, "flood_risk": 0.30, "heat_risk": 0.70},
+    "Lajpat Nagar":       {"disruption_freq": 0.32, "flood_risk": 0.45, "heat_risk": 0.68},
+    "Rohini":             {"disruption_freq": 0.35, "flood_risk": 0.50, "heat_risk": 0.72},
+    "Dwarka":             {"disruption_freq": 0.38, "flood_risk": 0.60, "heat_risk": 0.70},
+    "Saket":              {"disruption_freq": 0.25, "flood_risk": 0.35, "heat_risk": 0.65},
+    "Janakpuri":          {"disruption_freq": 0.30, "flood_risk": 0.40, "heat_risk": 0.68},
+    "Shahdara":           {"disruption_freq": 0.40, "flood_risk": 0.65, "heat_risk": 0.72},
+    "Noida Sector 18":    {"disruption_freq": 0.30, "flood_risk": 0.45, "heat_risk": 0.70},
+    "Gurugram Sector 29": {"disruption_freq": 0.28, "flood_risk": 0.50, "heat_risk": 0.68},
+    "Mayur Vihar":        {"disruption_freq": 0.35, "flood_risk": 0.55, "heat_risk": 0.70},
+    "Karol Bagh":         {"disruption_freq": 0.33, "flood_risk": 0.42, "heat_risk": 0.72},
+    "Vasant Kunj":        {"disruption_freq": 0.22, "flood_risk": 0.30, "heat_risk": 0.65},
 }
-
 ZONE_NAMES = list(ZONES.keys())
 
-MONTH_RISK = {
-    1: 0.70, 2: 0.65, 3: 0.20, 4: 0.25,
-    5: 0.75, 6: 0.80, 7: 0.70, 8: 0.75,
-    9: 0.60, 10: 0.65, 11: 0.80, 12: 0.75,
-}
-
-# Weekly income brackets for gig workers (INR)
-# Low: <3000, Mid: 3000-7000, High: >7000
 INCOME_MIN = 1500
 INCOME_MAX = 15000
+BASE_PREMIUM = 29.0
+MAX_PREMIUM  = 89.0
 
 
 def normalise_income(weekly_income_inr: float) -> float:
-    """Normalise weekly income to 0-1. Higher income → higher premium."""
     return float(np.clip((weekly_income_inr - INCOME_MIN) / (INCOME_MAX - INCOME_MIN), 0.0, 1.0))
 
 
 def generate_premium_data(n: int = 6000) -> pd.DataFrame:
-    zones  = RNG.choice(ZONE_NAMES, size=n)
-    months = RNG.integers(1, 13, size=n)
+    """
+    Premium = f(income, zone_risk, work_type, claim_history)
+    Weather/traffic do NOT affect premium — they affect claim amount.
+    """
+    zones      = RNG.choice(ZONE_NAMES, size=n)
+    work_types = RNG.choice([0, 1], size=n, p=[0.6, 0.4])  # 0=full-time, 1=part-time
 
-    zone_disruption_freq = np.array([ZONES[z]["base_disruption_freq"] for z in zones])
-    flood_risk           = np.array([ZONES[z]["flood_risk"]           for z in zones])
-    fog_risk             = np.array([ZONES[z]["fog_risk"]             for z in zones])
-    heat_risk            = np.array([ZONES[z]["heat_risk"]            for z in zones])
-    aqi_base             = np.array([ZONES[z]["aqi_base"]             for z in zones])
-    month_risk           = np.array([MONTH_RISK[m]                    for m in months])
+    disruption_freq = np.array([ZONES[z]["disruption_freq"] for z in zones])
+    flood_risk      = np.array([ZONES[z]["flood_risk"]      for z in zones])
+    heat_risk       = np.array([ZONES[z]["heat_risk"]       for z in zones])
 
-    is_fog_month  = np.array([m in (12, 1, 2)  for m in months], dtype=float)
-    is_heat_month = np.array([m in (5, 6)       for m in months], dtype=float)
-    is_monsoon    = np.array([m in (7, 8, 9)    for m in months], dtype=float)
-    is_aqi_spike  = np.array([m in (10, 11, 12) for m in months], dtype=float)
+    weekly_income   = np.clip(RNG.lognormal(8.3, 0.5, n), INCOME_MIN, INCOME_MAX)
+    income_norm     = (weekly_income - INCOME_MIN) / (INCOME_MAX - INCOME_MIN)
 
-    weather_severity = np.clip(
-        RNG.beta(2, 2, n) * (0.4 + 0.6 * month_risk)
-        + 0.20 * is_fog_month  * fog_risk
-        + 0.15 * is_heat_month * heat_risk
-        + 0.15 * is_monsoon    * flood_risk,
+    tenure_weeks    = RNG.integers(1, 105, size=n)
+    claim_ratio     = RNG.beta(1.5, 6, n) * (tenure_weeks > 4)
+
+    # Premium is primarily driven by income (coverage amount) + zone risk
+    # Part-time workers pay slightly less (less exposure)
+    work_factor = np.where(work_types == 0, 1.0, 0.75)
+
+    premium_score = np.clip(
+        0.50 * income_norm
+        + 0.20 * disruption_freq
+        + 0.15 * flood_risk
+        + 0.10 * claim_ratio
+        + 0.05 * heat_risk
+        + RNG.normal(0, 0.02, n),
         0.0, 1.0
-    )
-    aqi_level = np.clip(
-        aqi_base * RNG.beta(3, 2, n) + 0.20 * is_aqi_spike,
-        0.0, 1.0
-    )
-    traffic_disruption = RNG.beta(1.5, 3, n) * zone_disruption_freq
+    ) * work_factor
 
-    worker_tenure_weeks = RNG.integers(1, 105, size=n)
-    raw_claim_rate      = RNG.beta(1.5, 6, n)
-    has_history         = (worker_tenure_weeks > 4).astype(float)
-    worker_claim_ratio  = (has_history * raw_claim_rate
-                           + (1 - has_history) * zone_disruption_freq * 0.4)
-
-    # Weekly income: realistic gig worker distribution (skewed low)
-    weekly_income_inr   = np.clip(RNG.lognormal(8.3, 0.5, n), INCOME_MIN, INCOME_MAX)
-    income_norm         = (weekly_income_inr - INCOME_MIN) / (INCOME_MAX - INCOME_MIN)
-
-    base_score = (
-        0.25 * weather_severity
-        + 0.25 * aqi_level
-        + 0.15 * zone_disruption_freq
-        + 0.15 * worker_claim_ratio
-        + 0.20 * income_norm          # higher income → higher risk score → higher premium
-    )
-    seasonal_boost = (
-        0.25 * flood_risk * is_monsoon
-        + 0.20 * fog_risk  * is_fog_month
-        + 0.20 * heat_risk * is_heat_month
-        + 0.15 * aqi_base  * is_aqi_spike
-    )
-    risk_score = np.clip(
-        base_score + seasonal_boost + RNG.normal(0, 0.03, n),
-        0.0, 1.0
-    )
-
-    weekly_premium = np.round(49 + risk_score * 40, 2)
+    weekly_premium = np.round(BASE_PREMIUM + premium_score * (MAX_PREMIUM - BASE_PREMIUM), 2)
 
     return pd.DataFrame({
-        "zone":                  zones,
-        "month":                 months,
-        "zone_disruption_freq":  zone_disruption_freq,
-        "flood_risk":            flood_risk,
-        "fog_risk":              fog_risk.round(4),
-        "heat_risk":             heat_risk.round(4),
-        "aqi_base":              aqi_base.round(4),
-        "month_risk":            month_risk,
-        "weather_severity":      weather_severity.round(4),
-        "aqi_level":             aqi_level.round(4),
-        "traffic_disruption":    traffic_disruption.round(4),
-        "worker_tenure_weeks":   worker_tenure_weeks,
-        "worker_claim_ratio":    worker_claim_ratio.round(4),
-        "weekly_income_norm":    income_norm.round(4),
-        "risk_score":            risk_score.round(4),
-        "weekly_premium_inr":    weekly_premium,
+        "zone":             zones,
+        "work_type":        work_types,
+        "disruption_freq":  disruption_freq.round(4),
+        "flood_risk":       flood_risk.round(4),
+        "heat_risk":        heat_risk.round(4),
+        "weekly_income":    weekly_income.round(2),
+        "income_norm":      income_norm.round(4),
+        "tenure_weeks":     tenure_weeks,
+        "claim_ratio":      claim_ratio.round(4),
+        "premium_score":    premium_score.round(4),
+        "weekly_premium":   weekly_premium,
+    })
+
+
+def generate_claim_data(n: int = 5000) -> pd.DataFrame:
+    """
+    Claim amount = f(trigger_type, severity, weekly_income)
+    Higher income → higher payout (income replacement logic).
+    """
+    trigger_types = RNG.choice(
+        ["heavy_rain", "extreme_heat", "traffic", "aqi"], size=n,
+        p=[0.35, 0.25, 0.25, 0.15]
+    )
+    # Severity of the event (0-1)
+    severity      = RNG.beta(2, 2, n)
+    weekly_income = np.clip(RNG.lognormal(8.3, 0.5, n), INCOME_MIN, INCOME_MAX)
+    income_norm   = (weekly_income - INCOME_MIN) / (INCOME_MAX - INCOME_MIN)
+
+    # Base payout per trigger type (% of daily income)
+    base_pct = {
+        "heavy_rain":   0.40,
+        "extreme_heat": 0.30,
+        "traffic":      0.25,
+        "aqi":          0.20,
+    }
+    daily_income = weekly_income / 6  # 6 working days
+    base_payout  = np.array([base_pct[t] for t in trigger_types]) * daily_income
+
+    # Scale by severity + income factor
+    claim_amount = np.clip(
+        base_payout * (0.5 + severity) * (0.8 + 0.4 * income_norm)
+        + RNG.normal(0, 5, n),
+        50, 500
+    ).round(2)
+
+    return pd.DataFrame({
+        "trigger_type":  trigger_types,
+        "severity":      severity.round(4),
+        "weekly_income": weekly_income.round(2),
+        "income_norm":   income_norm.round(4),
+        "claim_amount":  claim_amount,
     })
 
 
@@ -141,16 +145,13 @@ def generate_fraud_data(n: int = 8000, fraud_rate: float = 0.08) -> pd.DataFrame
         "battery_drain_pct_per_hr":   RNG.uniform(8, 25, n_legit),
         "is_fraud": np.zeros(n_legit, dtype=int),
     }
-
     fraud = {
         "gps_accuracy_m":             RNG.uniform(0.5, 4.0, n_fraud),
         "accel_norm":                 RNG.uniform(9.6, 9.9, n_fraud),
-        "location_velocity_kmh":      RNG.choice(
-                                          np.concatenate([
-                                              RNG.uniform(0, 2, n_fraud // 2),
-                                              RNG.uniform(180, 400, n_fraud // 2),
-                                          ])
-                                      ),
+        "location_velocity_kmh":      RNG.choice(np.concatenate([
+                                          RNG.uniform(0, 2, n_fraud // 2),
+                                          RNG.uniform(180, 400, n_fraud // 2),
+                                      ])),
         "network_type":               RNG.choice([0, 1], n_fraud, p=[0.80, 0.20]),
         "order_acceptance_latency_s": RNG.uniform(0.5, 4.0, n_fraud),
         "peer_claims_same_window":    RNG.integers(15, 60, n_fraud),
@@ -161,13 +162,8 @@ def generate_fraud_data(n: int = 8000, fraud_rate: float = 0.08) -> pd.DataFrame
         "is_fraud": np.ones(n_fraud, dtype=int),
     }
 
-    df = pd.concat(
-        [pd.DataFrame(legit), pd.DataFrame(fraud)],
-        ignore_index=True
-    ).sample(frac=1, random_state=42)
-
-    float_cols = df.select_dtypes(include="float64").columns
-    df[float_cols] = df[float_cols].round(4)
+    df = pd.concat([pd.DataFrame(legit), pd.DataFrame(fraud)], ignore_index=True).sample(frac=1, random_state=42)
+    df[df.select_dtypes("float64").columns] = df.select_dtypes("float64").round(4)
     return df
 
 
@@ -175,16 +171,18 @@ if __name__ == "__main__":
     out = Path("data")
     out.mkdir(exist_ok=True)
 
-    print("Generating premium training data (Delhi NCR)...")
-    premium_df = generate_premium_data(6000)
-    premium_df.to_csv(out / "premium_train.csv", index=False)
-    print(f"  Saved {len(premium_df)} rows → data/premium_train.csv")
-    print(f"  risk_score range: {premium_df.risk_score.min():.3f} – {premium_df.risk_score.max():.3f}")
-    print(f"  premium range: ₹{premium_df.weekly_premium_inr.min()} – ₹{premium_df.weekly_premium_inr.max()}")
+    print("Generating premium data...")
+    prem = generate_premium_data(6000)
+    prem.to_csv(out / "premium_train.csv", index=False)
+    print(f"  premium range: ₹{prem.weekly_premium.min()} – ₹{prem.weekly_premium.max()}")
 
-    print("\nGenerating fraud training data...")
-    fraud_df = generate_fraud_data(8000, fraud_rate=0.08)
-    fraud_df.to_csv(out / "fraud_train.csv", index=False)
-    print(f"  Saved {len(fraud_df)} rows → data/fraud_train.csv")
-    print(f"  Fraud rate: {fraud_df.is_fraud.mean():.1%}")
-    print("\nDone.")
+    print("Generating claim amount data...")
+    claim = generate_claim_data(5000)
+    claim.to_csv(out / "claim_train.csv", index=False)
+    print(f"  claim range: ₹{claim.claim_amount.min()} – ₹{claim.claim_amount.max()}")
+
+    print("Generating fraud data...")
+    fraud = generate_fraud_data(8000)
+    fraud.to_csv(out / "fraud_train.csv", index=False)
+    print(f"  fraud rate: {fraud.is_fraud.mean():.1%}")
+    print("Done.")

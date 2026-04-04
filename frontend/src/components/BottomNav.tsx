@@ -1,5 +1,6 @@
 import React from "react";
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "./Icon";
 
 interface BottomNavProps {
@@ -8,15 +9,17 @@ interface BottomNavProps {
 }
 
 const tabs = [
-  { id: "home", icon: "home", label: "Home" },
-  { id: "activity", icon: "timeline", label: "Activity" },
-  { id: "alerts", icon: "notifications", label: "Alerts" },
-  { id: "profile", icon: "person", label: "Profile" },
+  { id: "home",     icon: "home",          label: "Home" },
+  { id: "activity", icon: "timeline",      label: "Activity" },
+  { id: "alerts",   icon: "notifications", label: "Alerts" },
+  { id: "profile",  icon: "person",        label: "Profile" },
 ];
 
 const BottomNav = ({ active, onNavigate }: BottomNavProps) => {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.navRow}>
         {tabs.map((tab) => {
           const isActive = active === tab.id;
@@ -27,11 +30,7 @@ const BottomNav = ({ active, onNavigate }: BottomNavProps) => {
               style={styles.tabButton}
             >
               <View style={[styles.iconWrapper, isActive && styles.activeIconWrapper]}>
-                <Icon
-                  name={tab.icon}
-                  size={20}
-                  color={isActive ? "#2563eb" : "#6b7280"}
-                />
+                <Icon name={tab.icon} size={20} color={isActive ? "#2563eb" : "#6b7280"} />
               </View>
               <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
                 {tab.label}
@@ -47,25 +46,27 @@ const BottomNav = ({ active, onNavigate }: BottomNavProps) => {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
     backgroundColor: "#ffffff",
-    borderTopWidth: 1,
-    borderTopColor: "#e5e7eb",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    zIndex: 100,
   },
   navRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-around",
-    paddingVertical: 8,
+    paddingBottom: 10,
+    paddingHorizontal: 8,
   },
   tabButton: {
     flexDirection: "column",
     alignItems: "center",
-    gap: 2,
+    gap: 3,
     paddingHorizontal: 16,
-    paddingVertical: 4,
+    paddingTop: 4,
     borderRadius: 12,
   },
   iconWrapper: {

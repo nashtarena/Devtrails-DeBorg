@@ -34,10 +34,15 @@ async def register(body: PartnerRegister):
 
     db = get_supabase()
 
-    # Check duplicate
+    # Check duplicate mobile
     existing = db.table("partners").select("id").eq("mobile", body.mobile).execute()
     if existing.data:
-        raise HTTPException(409, "Partner already registered")
+        raise HTTPException(409, "Mobile number already registered. Please login instead.")
+
+    # Check duplicate partner ID
+    existing_pid = db.table("partners").select("id").eq("swiggy_partner_id", body.swiggy_partner_id).execute()
+    if existing_pid.data:
+        raise HTTPException(409, f"Partner ID {body.swiggy_partner_id} already registered. Please login instead.")
 
     partner_id = str(uuid.uuid4())
     db.table("partners").insert({
@@ -65,14 +70,11 @@ async def register(body: PartnerRegister):
             resp = await client.post(
                 f"{settings.ML_SERVICE_URL}/ml/score/premium",
                 json={
-                    "zone": body.zone,
-                    "month": datetime.utcnow().month,
-                    "weather_severity": 0.4,
-                    "aqi_level": 0.5,
-                    "traffic_disruption": 0.3,
-                    "worker_tenure_weeks": 1,
-                    "worker_claim_ratio": 0.0,
+                    "zone":              body.zone,
+                    "work_type":         body.work_type,
                     "weekly_income_inr": float(body.weekly_income),
+                    "tenure_weeks":      1,
+                    "claim_ratio":       0.0,
                 },
             )
             if resp.status_code == 200:
@@ -84,7 +86,7 @@ async def register(body: PartnerRegister):
 
     db.table("coverage").insert({
         "partner_id": partner_id,
-        "plan": f"plus-{risk_tier.lower()}",
+        "plan": "plus",
         "weekly_premium": ml_premium,
         "is_active": True,
         "coverage_since": datetime.utcnow().isoformat(),
@@ -134,3 +136,24 @@ async def login_verify(body: OTPVerify):
     partner_id = result.data[0]["id"]
     token = create_access_token({"sub": partner_id, "mobile": body.mobile})
     return TokenResponse(access_token=token, partner_id=partner_id)
+
+
+@router.get("/check-partner/{swiggy_partner_id}")
+async def check_partner_exists(swiggy_partner_id: str):
+    """Quick check if a partner ID is already registered."""
+    db = get_supabase()
+    pid = swiggy_partner_id if swiggy_partner_id.startswith("SWG-") else f"SWG-{swiggy_partner_id}"
+    result = db.table("partners").select("id").eq("swiggy_partner_id", pid).execute()
+    return {"exists": bool(result.data)}
+
+
+@router.post("/estimate-premium")
+async def estimate_premium(body: dict):
+    """Unauthenticated ML premium estimate — used during onboarding."""
+    import httpx as _httpx
+    try:
+        async with _httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(f"{settings.ML_SERVICE_URL}/ml/score/premium", json=body)
+            return resp.json()
+    except Exception as e:
+        raise HTTPException(500, str(e))

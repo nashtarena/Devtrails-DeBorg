@@ -8,7 +8,7 @@ interface ProfileScreenProps {
   onLogout: () => void;
 }
 
-const ProfileScreen = ({ onLogout }: ProfileScreenProps) => {
+const ProfileScreen = ({ onLogout, topPadding = 0 }: { onLogout: () => void; topPadding?: number }) => {
   const [profile, setProfile]     = useState<any>(null);
   const [coverage, setCoverage]   = useState<any>(null);
   const [mlPremium, setMlPremium] = useState<any>(null);
@@ -54,7 +54,7 @@ const ProfileScreen = ({ onLogout }: ProfileScreenProps) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent]}>
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{initials}</Text>
@@ -112,7 +112,7 @@ const ProfileScreen = ({ onLogout }: ProfileScreenProps) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff" },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 140, gap: 20 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
   profileHeader: { flexDirection: "row", alignItems: "center", gap: 16 },
   avatar: { width: 64, height: 64, borderRadius: 16, backgroundColor: "#2563eb", alignItems: "center", justifyContent: "center" },
   avatarText: { fontSize: 24, fontWeight: "800", color: "#ffffff" },

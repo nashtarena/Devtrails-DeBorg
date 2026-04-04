@@ -49,6 +49,14 @@ export const api = {
       request<{ access_token: string; partner_id: string }>(
         "/auth/login/verify", { method: "POST", body: JSON.stringify({ mobile, otp }) }
       ),
+
+    checkPartner: (swiggy_partner_id: string) =>
+      request<{ exists: boolean }>(`/auth/check-partner/${swiggy_partner_id}`),
+
+    estimatePremium: (data: {
+      zone: string; work_type: string; weekly_income_inr: number;
+      tenure_weeks?: number; claim_ratio?: number;
+    }) => request<any>("/auth/estimate-premium", { method: "POST", body: JSON.stringify(data) }),
   },
 
   // ── Partner ────────────────────────────────────────────────
@@ -65,6 +73,7 @@ export const api = {
   claims: {
     list: (page = 1) => request<any>(`/partner/claims?page=${page}&limit=20`),
     get: (id: string) => request<any>(`/partner/claims/${id}`),
+    weeklyLoss: () => request<any>("/partner/weekly-loss"),
     submit: (data: {
       trigger_type: string;
       gps_accuracy_m?: number;
@@ -78,10 +87,13 @@ export const api = {
   // ── ML ─────────────────────────────────────────────────────
   ml: {
     premium: (data: {
-      zone: string; month: number; weather_severity: number;
-      aqi_level: number; traffic_disruption: number;
-      worker_tenure_weeks: number; worker_claim_ratio: number;
+      zone: string; work_type: string; weekly_income_inr: number;
+      tenure_weeks?: number; claim_ratio?: number;
     }) => request<any>("/ml/score/premium", { method: "POST", body: JSON.stringify(data) }),
+
+    claim: (data: {
+      trigger_type: string; severity: number; weekly_income_inr: number;
+    }) => request<any>("/ml/score/claim", { method: "POST", body: JSON.stringify(data) }),
 
     fraud: (data: {
       claim_id: string; gps_accuracy_m: number; accel_norm: number;
@@ -96,6 +108,9 @@ export const api = {
       network_type: number; battery_drain_pct_per_hr: number;
     }) => request<any>("/ml/validate/location", { method: "POST", body: JSON.stringify(data) }),
   },
+
+  simulate: (data: { trigger_type: string; severity: number; duration_hours: number }) =>
+    request<any>("/partner/simulate-disruption", { method: "POST", body: JSON.stringify(data) }),
   alerts: {
     list: (unreadOnly = false) =>
       request<any[]>(`/partner/alerts?unread_only=${unreadOnly}`),

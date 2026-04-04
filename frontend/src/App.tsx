@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import OnboardingFlow from "./screens/OnboardingFlow";
@@ -14,7 +15,17 @@ type Screen = "welcome" | "onboarding" | "login" | "home" | "activity" | "alerts
 
 const AppInner = () => {
   const [screen, setScreen] = useState<Screen>("welcome");
+  const [activityKey, setActivityKey] = useState(0);
   const { logout } = useAuth();
+  const insets = useSafeAreaInsets();
+  // Nav bar height = safe area top + icon row (~60px)
+  const NAV_HEIGHT = Math.max(insets.top, 12) + 60;
+
+  const handleNavigate = (tab: string) => {
+    // Refresh activity screen every time it's opened
+    if (tab === "activity") setActivityKey(k => k + 1);
+    setScreen(tab as Screen);
+  };
 
   const handleLogout = () => {
     logout();
@@ -45,13 +56,13 @@ const AppInner = () => {
           />
         );
       case "home":
-        return <DashboardScreen />;
+        return <DashboardScreen topPadding={NAV_HEIGHT} />;
       case "activity":
-        return <ClaimsScreen />;
+        return <ClaimsScreen key={activityKey} topPadding={NAV_HEIGHT} />;
       case "alerts":
-        return <AlertsScreen />;
+        return <AlertsScreen topPadding={NAV_HEIGHT} />;
       case "profile":
-        return <ProfileScreen onLogout={handleLogout} />;
+        return <ProfileScreen onLogout={handleLogout} topPadding={NAV_HEIGHT} />;
       default:
         return null;
     }
@@ -65,7 +76,7 @@ const AppInner = () => {
       {showBottomNav && (
         <BottomNav
           active={screen}
-          onNavigate={(tab) => setScreen(tab as Screen)}
+          onNavigate={handleNavigate}
         />
       )}
     </View>

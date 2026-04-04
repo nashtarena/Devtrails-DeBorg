@@ -29,6 +29,8 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [mlPremium, setMlPremium] = useState<any>(null);
+  const [premiumLoading, setPremiumLoading] = useState(false);
   const [formData, setFormData] = useState({
     partnerId: "", mobile: "", otp: "", name: "", income: "", workType: "", location: "",
     aadhaar: "", aadhaarOtp: "", pan: "", upi: "",
@@ -39,6 +41,24 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
 
   const next = async () => {
     setError("");
+
+    // Check partner ID exists as soon as user leaves that step
+    if (current.id === "partner" && formData.partnerId) {
+      try {
+        setLoading(true);
+        const check = await api.auth.checkPartner(formData.partnerId);
+        if (check.exists) {
+          setError("This Partner ID is already registered. Please login instead.");
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // ignore check errors, let registration handle it
+      } finally {
+        setLoading(false);
+      }
+    }
+
     // Send OTP when leaving mobile step
     if (current.id === "mobile") {
       try {
@@ -80,7 +100,21 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
         setLoading(false);
       }
     }
-    if (step < steps.length - 1) setStep(step + 1);
+    if (step < steps.length - 1) {
+      const nextStep = steps[step + 1];
+      // When reaching confirm step, calculate ML premium
+      if (nextStep.id === "confirm" && formData.income && formData.location && formData.workType) {
+        setPremiumLoading(true);
+        api.auth.estimatePremium({
+          zone: formData.location,
+          work_type: formData.workType.toLowerCase().replace(" ", "-"),
+          weekly_income_inr: parseFloat(formData.income) || 5000,
+          tenure_weeks: 1,
+          claim_ratio: 0,
+        }).then(setMlPremium).catch(() => {}).finally(() => setPremiumLoading(false));
+      }
+      setStep(step + 1);
+    }
   };
 
   const back = () => {
@@ -252,25 +286,47 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
               <View style={styles.confirmDivider} />
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Name</Text>
-                <Text style={styles.confirmValue}>{formData.name || "Raju Kumar"}</Text>
+                <Text style={styles.confirmValue}>{formData.name}</Text>
               </View>
               <View style={styles.confirmDivider} />
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Work Type</Text>
-                <Text style={styles.confirmValue}>{formData.workType || "Full-time"}</Text>
+                <Text style={styles.confirmValue}>{formData.workType}</Text>
               </View>
               <View style={styles.confirmDivider} />
               <View style={styles.confirmRow}>
                 <Text style={styles.confirmLabel}>Weekly Income</Text>
-                <Text style={styles.confirmValue}>₹{formData.income || "5,000"}</Text>
+                <Text style={styles.confirmValue}>₹{formData.income}</Text>
+              </View>
+              <View style={styles.confirmDivider} />
+              <View style={styles.confirmRow}>
+                <Text style={styles.confirmLabel}>Zone</Text>
+                <Text style={styles.confirmValue}>{formData.location}</Text>
               </View>
             </View>
+
             <View style={styles.premiumCard}>
-              <Text style={styles.premiumLabel}>Your Weekly Premium</Text>
-              <Text style={styles.premiumAmount}>₹29</Text>
-              <Text style={styles.premiumCoverage}>
-                Coverage: Weather, Traffic, Health disruptions
-              </Text>
+              {premiumLoading ? (
+                <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
+              ) : (
+                <>
+                  <Text style={styles.premiumLabel}>Your AI-Computed Weekly Premium</Text>
+                  <Text style={styles.premiumAmount}>
+                    ₹{mlPremium?.weekly_premium_inr ?? "--"}
+                  </Text>
+                  {mlPremium && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                      <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                        <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{mlPremium.risk_tier} RISK</Text>
+                      </View>
+                      <Text style={styles.premiumCoverage}>Based on your income & zone</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.premiumCoverage, { marginTop: 8 }]}>
+                    Coverage: Weather, Traffic, AQI disruptions
+                  </Text>
+                </>
+              )}
             </View>
           </View>
         );

@@ -18,7 +18,7 @@ const severityIcon: Record<string, string> = {
   info: "info",
 };
 
-const AlertsScreen = () => {
+const AlertsScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -47,7 +47,7 @@ const AlertsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent]}>
         <View style={styles.header}>
           <Text style={styles.title}>Alerts</Text>
           <Text style={styles.subtitle}>Real-time disruption feed</Text>
@@ -99,7 +99,7 @@ const AlertsScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff" },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100, gap: 20 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
   header: { gap: 4 },
   title: { fontSize: 20, fontWeight: "800", color: "#111827" },
   subtitle: { fontSize: 14, color: "#6b7280" },

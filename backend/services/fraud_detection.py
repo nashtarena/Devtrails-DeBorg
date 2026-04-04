@@ -20,12 +20,13 @@ async def run_fraud_checks(partner_id: str, zone: str, trigger_type: str) -> tup
     db = get_supabase()
     redis = await get_redis()
 
-    # 1. Daily claim rate limit
-    today = datetime.utcnow().date().isoformat()
-    daily_key = f"claims:daily:{partner_id}:{today}"
-    daily_count = await redis.get(daily_key)
-    if daily_count and int(daily_count) >= settings.MAX_CLAIMS_PER_DAY:
-        return True, f"Daily claim limit ({settings.MAX_CLAIMS_PER_DAY}) reached"
+    # 1. Weekly claim rate limit (max 1 per week)
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    weekly_key = f"claims:weekly:{partner_id}:{monday.isoformat()}"
+    weekly_count = await redis.get(weekly_key)
+    if weekly_count and int(weekly_count) >= 1:
+        return True, "Weekly claim already submitted for this week"
 
     # 2. Velocity check: same trigger type in last 60 min
     velocity_key = f"claims:velocity:{partner_id}:{trigger_type}"
@@ -51,13 +52,17 @@ async def run_fraud_checks(partner_id: str, zone: str, trigger_type: str) -> tup
 
 
 async def record_approved_claim(partner_id: str, trigger_type: str):
-    """Update rate limit counters after a claim is approved."""
+    """Update weekly rate limit counter after a claim is approved."""
     redis = await get_redis()
-    today = datetime.utcnow().date().isoformat()
+    today = datetime.utcnow().date()
+    monday = today - timedelta(days=today.weekday())
+    sunday = monday + timedelta(days=6)
 
-    daily_key = f"claims:daily:{partner_id}:{today}"
-    await redis.incr(daily_key)
-    await redis.expireat(daily_key, int((datetime.utcnow() + timedelta(days=1)).timestamp()))
+    weekly_key = f"claims:weekly:{partner_id}:{monday.isoformat()}"
+    await redis.incr(weekly_key)
+    # Expire at end of Sunday
+    expire_at = int((datetime.combine(sunday, datetime.max.time())).timestamp())
+    await redis.expireat(weekly_key, expire_at)
 
     velocity_key = f"claims:velocity:{partner_id}:{trigger_type}"
-    await redis.setex(velocity_key, 3600, "1")  # block same type for 1hr
+    await redis.setex(velocity_key, 3600 * 24 * 7, "1")  # block same type for 1 week
