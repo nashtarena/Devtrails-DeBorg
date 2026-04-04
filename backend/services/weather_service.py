@@ -27,59 +27,56 @@ class TrafficData:
 
 
 async def get_weather(zone: str) -> WeatherData:
-    coords = ZONE_COORDINATES.get(zone, (28.7041, 77.1025))
+    coords = ZONE_COORDINATES.get(zone.lower().replace(" ", "-"), (28.7041, 77.1025))
     lat, lon = coords
 
-    async with httpx.AsyncClient() as client:
-        # Current weather
-        weather_resp = await client.get(
-            "https://api.openweathermap.org/data/2.5/weather",
-            params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"},
-        )
-        weather = weather_resp.json()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            weather_resp = await client.get(
+                "https://api.openweathermap.org/data/2.5/weather",
+                params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"},
+            )
+            weather = weather_resp.json()
 
-        # Air pollution
-        aqi_resp = await client.get(
-            "https://api.openweathermap.org/data/2.5/air_pollution",
-            params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY},
-        )
-        aqi_data = aqi_resp.json()
+            aqi_resp = await client.get(
+                "https://api.openweathermap.org/data/2.5/air_pollution",
+                params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY},
+            )
+            aqi_data = aqi_resp.json()
 
-    rain_1h = weather.get("rain", {}).get("1h", 0.0)
-    temp = weather["main"]["temp"]
-    aqi = aqi_data["list"][0]["main"]["aqi"] * 50  # OWM AQI 1-5 → rough US AQI scale
-
-    return WeatherData(temperature=temp, rain_mm=rain_1h, aqi=aqi)
+        rain_1h = weather.get("rain", {}).get("1h", 0.0)
+        temp = weather["main"]["temp"]
+        aqi = aqi_data["list"][0]["main"]["aqi"] * 50
+        return WeatherData(temperature=temp, rain_mm=rain_1h, aqi=aqi)
+    except Exception as e:
+        print(f"[WeatherService] Failed for zone {zone}: {e}")
+        return WeatherData(temperature=30.0, rain_mm=0.0, aqi=100)
 
 
 async def get_traffic_delay(zone: str) -> TrafficData:
-    """
-    Uses Google Maps Distance Matrix to estimate delay vs free-flow.
-    Returns extra delay in minutes for a representative route in the zone.
-    """
-    coords = ZONE_COORDINATES.get(zone, (28.7041, 77.1025))
+    coords = ZONE_COORDINATES.get(zone.lower().replace(" ", "-"), (28.7041, 77.1025))
     lat, lon = coords
-    # Simple: origin = zone center, destination = 5km north
     origin = f"{lat},{lon}"
     dest = f"{lat + 0.045},{lon}"
 
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            "https://maps.googleapis.com/maps/api/distancematrix/json",
-            params={
-                "origins": origin,
-                "destinations": dest,
-                "departure_time": "now",
-                "key": settings.GOOGLE_MAPS_API_KEY,
-            },
-        )
-    data = resp.json()
     try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://maps.googleapis.com/maps/api/distancematrix/json",
+                params={
+                    "origins": origin,
+                    "destinations": dest,
+                    "departure_time": "now",
+                    "key": settings.GOOGLE_MAPS_API_KEY,
+                },
+            )
+        data = resp.json()
         element = data["rows"][0]["elements"][0]
         normal = element["duration"]["value"]
         in_traffic = element["duration_in_traffic"]["value"]
         delay = max(0, (in_traffic - normal) // 60)
-    except (KeyError, IndexError):
+    except Exception as e:
+        print(f"[WeatherService] Traffic API failed for zone {zone}: {e}")
         delay = 0
 
     return TrafficData(delay_minutes=delay)

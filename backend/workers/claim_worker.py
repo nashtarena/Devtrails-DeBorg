@@ -1,16 +1,17 @@
 """
 Claim Worker:
-Consumes `claim-trigger` topic → fraud check → compute payout → Razorpay → update DB
+Consumes `claim-trigger` topic → ML fraud check → compute payout → Razorpay → update DB
 Run: python -m app.workers.claim_worker
 """
 import asyncio
 import json
 import uuid
+import httpx
 from datetime import datetime
 from aiokafka import AIOKafkaConsumer
 from app.config import get_settings
 from app.database import get_supabase
-from app.services.fraud_detection import run_fraud_checks, record_approved_claim
+from app.services.fraud_detection import record_approved_claim
 from app.services.payout_service import (
     calculate_payout_amount,
     send_payout,
@@ -50,8 +51,40 @@ async def process_claim(event: dict):
         print(f"[ClaimWorker] No active coverage for {partner_id}, skipping")
         return
 
-    # Fraud checks
-    is_fraud, reason = await run_fraud_checks(partner_id, zone, trigger_type)
+    # ML Fraud check — use real device signals if available
+    is_fraud = False
+    reason = ""
+    fraud_decision = "AUTO_APPROVED"
+    device = event.get("device_signals", {})
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{settings.ML_SERVICE_URL}/ml/score/fraud",
+                json={
+                    "claim_id": claim_id,
+                    "gps_accuracy_m":             device.get("gps_accuracy_m", 14.0),
+                    "accel_norm":                 device.get("accel_norm", 10.5),
+                    "location_velocity_kmh":      device.get("location_velocity_kmh", 20.0),
+                    "network_type":               device.get("network_type", 1),
+                    "order_acceptance_latency_s": device.get("order_acceptance_latency_s", 30.0),
+                    "battery_drain_pct_per_hr":   device.get("battery_drain_pct_per_hr", 12.0),
+                    "peer_claims_same_window":    device.get("peer_claims_same_window", event.get("peer_claims", 2)),
+                    "zone_claim_spike_ratio":     device.get("zone_claim_spike_ratio", event.get("zone_spike_ratio", 1.5)),
+                    "device_subnet_overlap":      device.get("device_subnet_overlap", 0),
+                    "claim_time_std_minutes":     device.get("claim_time_std_minutes", 45.0),
+                },
+            )
+            if resp.status_code == 200:
+                fraud_result = resp.json()
+                fraud_decision = fraud_result["decision"]
+                if fraud_decision == "AUTO_REJECTED":
+                    is_fraud = True
+                    reason = fraud_result["explanation"]
+                    print(f"[ClaimWorker] ML rejected claim: {fraud_result['triggered_signals']}")
+                elif fraud_decision == "FLAGGED":
+                    print(f"[ClaimWorker] ML flagged claim {claim_id}: {fraud_result['triggered_signals']}")
+    except Exception as e:
+        print(f"[ClaimWorker] ML fraud check failed, proceeding: {e}")
     claim_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
 

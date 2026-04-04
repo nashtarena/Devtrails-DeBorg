@@ -14,18 +14,18 @@ class PartnerProfile(BaseModel):
     weekly_income: float
     upi_id: str
     kyc_verified: bool
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
 
 class CoverageStatus(BaseModel):
     partner_id: str
-    plan: str          # basic | plus | shield
+    plan: str
     weekly_premium: float
     is_active: bool
     coverage_since: datetime
     renewal_date: datetime
-    total_claims: int
-    total_payout: float
+    total_claims: int = 0
+    total_payout: float = 0.0
 
 
 # ── Claims ─────────────────────────────────────────────────────────────────
@@ -41,7 +41,7 @@ class ClaimOut(BaseModel):
     trigger_type: str      # heavy_rain | extreme_heat | traffic | aqi
     status: str            # processing | paid | rejected
     amount: float
-    claim_date: datetime
+    created_at: datetime
     timeline: list[ClaimTimelineEvent]
 
 
@@ -64,9 +64,9 @@ class RiskScore(BaseModel):
 class AlertOut(BaseModel):
     id: str
     title: str
-    description: str
-    severity: str              # high | medium | low | info
-    alert_type: str            # rain | heat | traffic | aqi | coverage
+    description: Optional[str] = ""
+    severity: str
+    alert_type: str
     zone: str
     created_at: datetime
     is_read: bool
@@ -75,8 +75,8 @@ class AlertOut(BaseModel):
 # ── Live Data ──────────────────────────────────────────────────────────────
 class LiveConditions(BaseModel):
     temperature: float
-    rain_mm: float
+    rainfall: float        # frontend reads this
     aqi: int
-    traffic_delay_min: int
+    traffic_delay: int     # frontend reads this
     zone: str
     updated_at: datetime

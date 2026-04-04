@@ -33,8 +33,8 @@ async def run_fraud_checks(partner_id: str, zone: str, trigger_type: str) -> tup
         return True, f"Duplicate {trigger_type} claim within 1 hour"
 
     # 3. Location check: partner's registered zone must match incident zone
-    partner = db.table("partners").select("zone").eq("id", partner_id).single().execute()
-    if partner.data and partner.data["zone"] != zone:
+    partner = db.table("partners").select("zone").eq("id", partner_id).execute()
+    if partner.data and partner.data[0]["zone"] != zone:
         return True, "Incident zone does not match partner's registered zone"
 
     # 4. Ring detection: if >5 partners in same zone claimed same trigger in last 10 min

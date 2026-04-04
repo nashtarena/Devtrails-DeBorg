@@ -13,14 +13,20 @@ class OTPVerify(BaseModel):
 class PartnerRegister(BaseModel):
     mobile: str
     otp: str
-    swiggy_partner_id: str = Field(..., pattern=r"^SWG-\d+$")
+    swiggy_partner_id: str
     name: str
     weekly_income: float = Field(..., gt=0)
-    work_type: str = Field(..., pattern="^(full-time|part-time|casual)$")
+    work_type: str
     zone: str
     aadhaar_last4: str = Field(..., min_length=4, max_length=4)
-    pan: str = Field(..., pattern=r"^[A-Z]{5}[0-9]{4}[A-Z]$")
-    upi_id: str = Field(..., pattern=r"^[\w.\-]+@[\w]+$")
+    pan: str
+    upi_id: str
+
+    def normalize(self):
+        self.work_type = self.work_type.lower().replace(" ", "-")
+        self.pan = self.pan.upper()
+        if not self.swiggy_partner_id.startswith("SWG-"):
+            self.swiggy_partner_id = f"SWG-{self.swiggy_partner_id}"
 
 
 class LoginRequest(BaseModel):

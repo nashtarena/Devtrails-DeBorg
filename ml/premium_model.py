@@ -1,10 +1,7 @@
 """
 GigShield - Dynamic Premium Model
 XGBoost Regressor: risk features → risk_score (0–1) → weekly premium (₹49–₹89)
-
-Usage:
-    train:   python premium_model.py
-    import:  from premium_model import load_premium_model, predict_premium
+Salary (weekly_income_norm) is a first-class feature — higher earners pay more.
 """
 
 import joblib
@@ -18,11 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import OrdinalEncoder
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-MODEL_PATH    = Path("models/premium_model.joblib")
-ENCODER_PATH  = Path("models/premium_encoder.joblib")
+MODEL_PATH   = Path("models/premium_model.joblib")
+ENCODER_PATH = Path("models/premium_encoder.joblib")
 
 FEATURE_COLS = [
     "zone",
@@ -38,14 +32,17 @@ FEATURE_COLS = [
     "traffic_disruption",
     "worker_tenure_weeks",
     "worker_claim_ratio",
+    "weekly_income_norm",   # ← salary feature
 ]
 TARGET_COL = "risk_score"
 
-BASE_PREMIUM    = 49.0   # ₹ per week
-MAX_PREMIUM     = 89.0   # ₹ per week
-PREMIUM_RANGE   = MAX_PREMIUM - BASE_PREMIUM   # 40
+BASE_PREMIUM  = 49.0
+MAX_PREMIUM   = 89.0
+PREMIUM_RANGE = MAX_PREMIUM - BASE_PREMIUM
 
-# Seasonal risk by month
+INCOME_MIN = 1500
+INCOME_MAX = 15000
+
 MONTH_RISK = {
     1: 0.25, 2: 0.20, 3: 0.25, 4: 0.30,
     5: 0.35, 6: 0.40, 7: 0.45, 8: 0.50,
@@ -68,70 +65,49 @@ ZONE_DEFAULTS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
+def normalise_income(weekly_income_inr: float) -> float:
+    return float(np.clip((weekly_income_inr - INCOME_MIN) / (INCOME_MAX - INCOME_MIN), 0.0, 1.0))
+
+
 def train_premium_model(data_path: str = "data/premium_train.csv") -> None:
-    print("=== Training Premium Risk Model ===")
+    print("=== Training Premium Risk Model (with salary) ===")
     df = pd.read_csv(data_path)
 
-    # Encode zone (ordinal — XGBoost handles it fine with enable_categorical)
     encoder = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
     df["zone"] = encoder.fit_transform(df[["zone"]])
 
     X = df[FEATURE_COLS]
     y = df[TARGET_COL]
 
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.15, random_state=42
-    )
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15, random_state=42)
 
     model = XGBRegressor(
-        n_estimators=400,
-        learning_rate=0.05,
-        max_depth=5,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        min_child_weight=3,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        random_state=42,
-        n_jobs=-1,
-        eval_metric="mae",
-        early_stopping_rounds=30,
-        verbosity=0,
+        n_estimators=400, learning_rate=0.05, max_depth=5,
+        subsample=0.8, colsample_bytree=0.8, min_child_weight=3,
+        reg_alpha=0.1, reg_lambda=1.0, random_state=42, n_jobs=-1,
+        eval_metric="mae", early_stopping_rounds=30, verbosity=0,
     )
-
-    model.fit(
-        X_train, y_train,
-        eval_set=[(X_val, y_val)],
-        verbose=False,
-    )
+    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
     preds = model.predict(X_val)
     mae   = mean_absolute_error(y_val, preds)
     r2    = r2_score(y_val, preds)
-    print(f"  Validation MAE (risk_score): {mae:.4f}")
-    print(f"  Validation R²:              {r2:.4f}")
+    print(f"  Validation MAE: {mae:.4f}  R²: {r2:.4f}  Premium MAE: ₹{mae*PREMIUM_RANGE:.2f}")
 
-    # Premium MAE in rupees
-    premium_mae = mae * PREMIUM_RANGE
-    print(f"  Approx premium MAE:         ₹{premium_mae:.2f}")
+    # Feature importance
+    fi = pd.Series(model.feature_importances_, index=FEATURE_COLS).nlargest(5)
+    print("  Top features:")
+    for feat, imp in fi.items():
+        print(f"    {feat:<30} {imp:.4f}")
 
     Path("models").mkdir(exist_ok=True)
     joblib.dump(model,   MODEL_PATH)
     joblib.dump(encoder, ENCODER_PATH)
-    print(f"  Model saved  → {MODEL_PATH}")
-    print(f"  Encoder saved→ {ENCODER_PATH}")
+    print(f"  Saved → {MODEL_PATH}, {ENCODER_PATH}")
 
 
-# ---------------------------------------------------------------------------
-# Inference helpers
-# ---------------------------------------------------------------------------
 def load_premium_model():
-    model   = joblib.load(MODEL_PATH)
-    encoder = joblib.load(ENCODER_PATH)
-    return model, encoder
+    return joblib.load(MODEL_PATH), joblib.load(ENCODER_PATH)
 
 
 @dataclass
@@ -140,24 +116,25 @@ class PremiumResult:
     month:              int
     risk_score:         float
     weekly_premium_inr: float
-    risk_tier:          str       # LOW / MEDIUM / HIGH
-    breakdown: dict
+    risk_tier:          str
+    breakdown:          dict
 
 
 def risk_tier(score: float) -> str:
-    if score < 0.33:  return "LOW"
-    if score < 0.66:  return "MEDIUM"
+    if score < 0.33: return "LOW"
+    if score < 0.66: return "MEDIUM"
     return "HIGH"
 
 
 def predict_premium(
-    zone:                 str,
-    month:                int,
-    weather_severity:     float,
-    aqi_level:            float,
-    traffic_disruption:   float,
-    worker_tenure_weeks:  int,
-    worker_claim_ratio:   float,
+    zone:                str,
+    month:               int,
+    weather_severity:    float,
+    aqi_level:           float,
+    traffic_disruption:  float,
+    worker_tenure_weeks: int,
+    worker_claim_ratio:  float,
+    weekly_income_inr:   float = 5000.0,
     model=None,
     encoder=None,
 ) -> PremiumResult:
@@ -168,22 +145,24 @@ def predict_premium(
         "zone_disruption_freq": 0.30, "flood_risk": 0.45,
         "fog_risk": 0.58, "heat_risk": 0.70, "aqi_base": 0.76
     })
-    month_risk = MONTH_RISK.get(month, 0.55)
+    month_risk    = MONTH_RISK.get(month, 0.55)
+    income_norm   = normalise_income(weekly_income_inr)
 
     row = pd.DataFrame([{
-        "zone":                  zone,
-        "month":                 month,
-        "zone_disruption_freq":  zone_info["zone_disruption_freq"],
-        "flood_risk":            zone_info["flood_risk"],
-        "fog_risk":              zone_info["fog_risk"],
-        "heat_risk":             zone_info["heat_risk"],
-        "aqi_base":              zone_info["aqi_base"],
-        "month_risk":            month_risk,
-        "weather_severity":      weather_severity,
-        "aqi_level":             aqi_level,
-        "traffic_disruption":    traffic_disruption,
-        "worker_tenure_weeks":   worker_tenure_weeks,
-        "worker_claim_ratio":    worker_claim_ratio,
+        "zone":                 zone,
+        "month":                month,
+        "zone_disruption_freq": zone_info["zone_disruption_freq"],
+        "flood_risk":           zone_info["flood_risk"],
+        "fog_risk":             zone_info["fog_risk"],
+        "heat_risk":            zone_info["heat_risk"],
+        "aqi_base":             zone_info["aqi_base"],
+        "month_risk":           month_risk,
+        "weather_severity":     weather_severity,
+        "aqi_level":            aqi_level,
+        "traffic_disruption":   traffic_disruption,
+        "worker_tenure_weeks":  worker_tenure_weeks,
+        "worker_claim_ratio":   worker_claim_ratio,
+        "weekly_income_norm":   income_norm,
     }])
 
     row["zone"] = encoder.transform(row[["zone"]])
@@ -198,6 +177,7 @@ def predict_premium(
         weekly_premium_inr = premium,
         risk_tier          = risk_tier(score),
         breakdown = {
+            "income_factor":        round(income_norm, 3),
             "zone_disruption_freq": zone_info["zone_disruption_freq"],
             "flood_risk":           zone_info["flood_risk"],
             "month_risk":           month_risk,
@@ -209,52 +189,22 @@ def predict_premium(
     )
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     from data_generator import generate_premium_data
 
     data_path = Path("data/premium_train.csv")
-    if not data_path.exists():
-        print("Generating premium training data first...")
-        Path("data").mkdir(exist_ok=True)
-        generate_premium_data(6000).to_csv(data_path, index=False)
+    Path("data").mkdir(exist_ok=True)
+    generate_premium_data(6000).to_csv(data_path, index=False)
 
     train_premium_model(str(data_path))
 
-    print("\n=== Inference smoke test ===")
+    print("\n=== Smoke tests ===")
     model, encoder = load_premium_model()
 
-    # Low risk: mild March, Saket (cleaner zone), new worker
-    r1 = predict_premium(
-        zone="Saket", month=3,
-        weather_severity=0.10, aqi_level=0.35,
-        traffic_disruption=0.10, worker_tenure_weeks=2,
-        worker_claim_ratio=0.05,
-        model=model, encoder=encoder,
-    )
-    print(f"  Low risk  ({r1.zone}, Mar): score={r1.risk_score}  "
-          f"premium=₹{r1.weekly_premium_inr}  tier={r1.risk_tier}")
-
-    # High risk: November Shahdara — peak AQI (Diwali) + high disruption zone
-    r2 = predict_premium(
-        zone="Shahdara", month=11,
-        weather_severity=0.75, aqi_level=0.92,
-        traffic_disruption=0.70, worker_tenure_weeks=80,
-        worker_claim_ratio=0.45,
-        model=model, encoder=encoder,
-    )
-    print(f"  High risk ({r2.zone}, Nov): score={r2.risk_score}  "
-          f"premium=₹{r2.weekly_premium_inr}  tier={r2.risk_tier}")
-
-    # Mid risk: August Dwarka — monsoon floods, moderate AQI
-    r3 = predict_premium(
-        zone="Dwarka", month=8,
-        weather_severity=0.80, aqi_level=0.55,
-        traffic_disruption=0.60, worker_tenure_weeks=40,
-        worker_claim_ratio=0.20,
-        model=model, encoder=encoder,
-    )
-    print(f"  Mid risk  ({r3.zone}, Aug): score={r3.risk_score}  "
-          f"premium=₹{r3.weekly_premium_inr}  tier={r3.risk_tier}")
+    for label, kwargs in [
+        ("Low income  ₹2000, Saket, Mar",    dict(zone="Saket",    month=3,  weather_severity=0.10, aqi_level=0.35, traffic_disruption=0.10, worker_tenure_weeks=2,  worker_claim_ratio=0.05, weekly_income_inr=2000)),
+        ("Mid income  ₹5000, Dwarka, Aug",   dict(zone="Dwarka",   month=8,  weather_severity=0.80, aqi_level=0.55, traffic_disruption=0.60, worker_tenure_weeks=40, worker_claim_ratio=0.20, weekly_income_inr=5000)),
+        ("High income ₹12000, Shahdara, Nov",dict(zone="Shahdara", month=11, weather_severity=0.75, aqi_level=0.92, traffic_disruption=0.70, worker_tenure_weeks=80, worker_claim_ratio=0.45, weekly_income_inr=12000)),
+    ]:
+        r = predict_premium(**kwargs, model=model, encoder=encoder)
+        print(f"  {label}: ₹{r.weekly_premium_inr}/week  tier={r.risk_tier}  score={r.risk_score}")

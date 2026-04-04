@@ -28,24 +28,24 @@ ZONES = {
 
 ZONE_NAMES = list(ZONES.keys())
 
-# Seasonal risk by month — Delhi-specific
-# Jan-Feb  : peak fog
-# Mar-Apr  : mildest months
-# May-Jun  : extreme heat + dust storms
-# Jul-Sep  : monsoon floods + waterlogging
-# Oct-Dec  : AQI spike (stubble burning, Diwali, fog begins)
 MONTH_RISK = {
     1: 0.70, 2: 0.65, 3: 0.20, 4: 0.25,
     5: 0.75, 6: 0.80, 7: 0.70, 8: 0.75,
     9: 0.60, 10: 0.65, 11: 0.80, 12: 0.75,
 }
 
+# Weekly income brackets for gig workers (INR)
+# Low: <3000, Mid: 3000-7000, High: >7000
+INCOME_MIN = 1500
+INCOME_MAX = 15000
+
+
+def normalise_income(weekly_income_inr: float) -> float:
+    """Normalise weekly income to 0-1. Higher income → higher premium."""
+    return float(np.clip((weekly_income_inr - INCOME_MIN) / (INCOME_MAX - INCOME_MIN), 0.0, 1.0))
+
 
 def generate_premium_data(n: int = 6000) -> pd.DataFrame:
-    """
-    Each row = one worker-week context.
-    Target: risk_score (0-1) → weekly premium.
-    """
     zones  = RNG.choice(ZONE_NAMES, size=n)
     months = RNG.integers(1, 13, size=n)
 
@@ -61,7 +61,6 @@ def generate_premium_data(n: int = 6000) -> pd.DataFrame:
     is_monsoon    = np.array([m in (7, 8, 9)    for m in months], dtype=float)
     is_aqi_spike  = np.array([m in (10, 11, 12) for m in months], dtype=float)
 
-    # Weather: fog in winter, dust/heat in summer, rain in monsoon
     weather_severity = np.clip(
         RNG.beta(2, 2, n) * (0.4 + 0.6 * month_risk)
         + 0.20 * is_fog_month  * fog_risk
@@ -69,7 +68,6 @@ def generate_premium_data(n: int = 6000) -> pd.DataFrame:
         + 0.15 * is_monsoon    * flood_risk,
         0.0, 1.0
     )
-    # AQI: always high in Delhi, spikes Oct-Dec
     aqi_level = np.clip(
         aqi_base * RNG.beta(3, 2, n) + 0.20 * is_aqi_spike,
         0.0, 1.0
@@ -82,14 +80,16 @@ def generate_premium_data(n: int = 6000) -> pd.DataFrame:
     worker_claim_ratio  = (has_history * raw_claim_rate
                            + (1 - has_history) * zone_disruption_freq * 0.4)
 
-    # Two-part formula so full 0-1 range is reachable:
-    # base_score: always-on features, weights sum to 1.0
-    # seasonal_boost: additive, pushes high-risk months above 0.7
+    # Weekly income: realistic gig worker distribution (skewed low)
+    weekly_income_inr   = np.clip(RNG.lognormal(8.3, 0.5, n), INCOME_MIN, INCOME_MAX)
+    income_norm         = (weekly_income_inr - INCOME_MIN) / (INCOME_MAX - INCOME_MIN)
+
     base_score = (
-        0.30 * weather_severity
-        + 0.30 * aqi_level
-        + 0.20 * zone_disruption_freq
-        + 0.20 * worker_claim_ratio
+        0.25 * weather_severity
+        + 0.25 * aqi_level
+        + 0.15 * zone_disruption_freq
+        + 0.15 * worker_claim_ratio
+        + 0.20 * income_norm          # higher income → higher risk score → higher premium
     )
     seasonal_boost = (
         0.25 * flood_risk * is_monsoon
@@ -118,16 +118,13 @@ def generate_premium_data(n: int = 6000) -> pd.DataFrame:
         "traffic_disruption":    traffic_disruption.round(4),
         "worker_tenure_weeks":   worker_tenure_weeks,
         "worker_claim_ratio":    worker_claim_ratio.round(4),
+        "weekly_income_norm":    income_norm.round(4),
         "risk_score":            risk_score.round(4),
         "weekly_premium_inr":    weekly_premium,
     })
 
 
 def generate_fraud_data(n: int = 8000, fraud_rate: float = 0.08) -> pd.DataFrame:
-    """
-    Each row = one claim event.
-    Target: is_fraud (0/1)
-    """
     n_fraud = int(n * fraud_rate)
     n_legit = n - n_fraud
 
@@ -182,8 +179,7 @@ if __name__ == "__main__":
     premium_df = generate_premium_data(6000)
     premium_df.to_csv(out / "premium_train.csv", index=False)
     print(f"  Saved {len(premium_df)} rows → data/premium_train.csv")
-    print(f"  risk_score  mean={premium_df.risk_score.mean():.3f}  std={premium_df.risk_score.std():.3f}")
-    print(f"  risk_score  min={premium_df.risk_score.min():.3f}  max={premium_df.risk_score.max():.3f}")
+    print(f"  risk_score range: {premium_df.risk_score.min():.3f} – {premium_df.risk_score.max():.3f}")
     print(f"  premium range: ₹{premium_df.weekly_premium_inr.min()} – ₹{premium_df.weekly_premium_inr.max()}")
 
     print("\nGenerating fraud training data...")
@@ -191,5 +187,4 @@ if __name__ == "__main__":
     fraud_df.to_csv(out / "fraud_train.csv", index=False)
     print(f"  Saved {len(fraud_df)} rows → data/fraud_train.csv")
     print(f"  Fraud rate: {fraud_df.is_fraud.mean():.1%}")
-
     print("\nDone.")

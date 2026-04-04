@@ -33,7 +33,8 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str
     FAST2SMS_API_KEY: str  # Indian SMS gateway
 
-    # Claim thresholds
+    # ML Service
+    ML_SERVICE_URL: str = "http://ml:8001"
     RAIN_THRESHOLD_MM: float = 40.0       # Heavy rain
     HEAT_THRESHOLD_CELSIUS: float = 42.0  # Extreme heat
     AQI_THRESHOLD: int = 300              # Hazardous AQI

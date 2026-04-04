@@ -49,6 +49,8 @@ const webEmojiMap: Record<string, string> = {
   schedule: "⏰",
   error: "⚠️",
   "error-outline": "⚠️",
+  "flash-on": "⚡",
+  "info": "ℹ️",
 };
 
 /**
@@ -57,7 +59,6 @@ const webEmojiMap: Record<string, string> = {
  */
 const materialNameMap: Record<string, string> = {
   security: "security",
-  home: "home",
   timeline: "timeline",
   notifications: "notifications",
   person: "person",
@@ -95,6 +96,8 @@ const materialNameMap: Record<string, string> = {
   schedule: "schedule",
   error: "error",
   "error-outline": "error-outline",
+  "flash-on": "flash-on",
+  "info": "info",
 };
 
 const MaterialIconWeb: React.FC<IconProps> = ({ name, size, color }) => {

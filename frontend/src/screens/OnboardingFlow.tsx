@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
 import { Icon } from "../components/Icon";
 import { shadowSm } from "../constants/shadows";
+import { api, setToken } from "../lib/api";
+import { useAuth } from "../lib/AuthContext";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -23,7 +25,10 @@ const steps = [
 ];
 
 const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
+  const { login } = useAuth();
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     partnerId: "", mobile: "", otp: "", name: "", income: "", workType: "", location: "",
     aadhaar: "", aadhaarOtp: "", pan: "", upi: "",
@@ -32,9 +37,50 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
   const current = steps[step];
   const progress = ((step + 1) / steps.length) * 100;
 
-  const next = () => {
+  const next = async () => {
+    setError("");
+    // Send OTP when leaving mobile step
+    if (current.id === "mobile") {
+      try {
+        setLoading(true);
+        await api.auth.requestOtp(formData.mobile);
+      } catch (e: any) {
+        setError(e.message);
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+    // Register on final confirm step
+    if (current.id === "confirm") {
+      try {
+        setLoading(true);
+        const res = await api.auth.register({
+          swiggy_partner_id: formData.partnerId.startsWith("SWG-") ? formData.partnerId : `SWG-${formData.partnerId}`,
+          name: formData.name,
+          mobile: formData.mobile,
+          otp: formData.otp,
+          weekly_income: parseFloat(formData.income) || 0,
+          work_type: formData.workType.toLowerCase().replace(" ", "-"), // "Full-time" → "full-time"
+          zone: formData.location,
+          upi_id: formData.upi,
+          pan: formData.pan,
+          aadhaar_last4: formData.aadhaar.replace(/\s/g, "").slice(-4),
+        });
+        setToken(res.access_token);  // set immediately before navigation
+        login(res.access_token, res.partner_id);
+        onComplete();
+        return;
+      } catch (e: any) {
+        setError(e.message);
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
     if (step < steps.length - 1) setStep(step + 1);
-    else onComplete();
   };
 
   const back = () => {
@@ -78,11 +124,15 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
       case "otp":
         return (
           <View style={styles.otpSection}>
-            <View style={styles.otpContainer}>
-              {[0,1,2,3,4,5].map((i) => (
-                <TextInput key={i} maxLength={1} style={styles.otpInput} placeholderTextColor="#9ca3af" />
-              ))}
-            </View>
+            <TextInput
+              placeholder="Enter 6-digit OTP"
+              value={formData.otp}
+              onChangeText={(val) => updateField("otp", val.replace(/\D/g, "").slice(0, 6))}
+              keyboardType="number-pad"
+              maxLength={6}
+              style={[styles.textInput, { textAlign: "center", fontSize: 24, fontWeight: "700", letterSpacing: 8 }]}
+              placeholderTextColor="#9ca3af"
+            />
             <Text style={styles.otpHint}>
               Sent to +91 {formData.mobile || "XXXXXXXXXX"}
             </Text>
@@ -258,12 +308,18 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.primaryButton} onPress={next}>
-          <Text style={styles.primaryButtonText}>
-            {step === steps.length - 1 ? "Activate Protection" : "Continue"}
-          </Text>
-          <Icon name="chevron-right" size={18} color="#ffffff" />
+        <TouchableOpacity style={styles.primaryButton} onPress={next} disabled={loading}>
+          {loading
+            ? <ActivityIndicator color="#fff" />
+            : <>
+                <Text style={styles.primaryButtonText}>
+                  {step === steps.length - 1 ? "Activate Protection" : "Continue"}
+                </Text>
+                <Icon name="chevron-right" size={18} color="#ffffff" />
+              </>
+          }
         </TouchableOpacity>
+        {!!error && <Text style={{ color: "#ef4444", fontSize: 13, textAlign: "center", marginTop: 8 }}>{error}</Text>}
       </View>
     </SafeAreaView>
   );

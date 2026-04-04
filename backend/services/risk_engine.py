@@ -101,9 +101,9 @@ async def get_live_conditions(zone: str) -> LiveConditions:
     traffic = await get_traffic_delay(zone)
     return LiveConditions(
         temperature=weather.temperature,
-        rain_mm=weather.rain_mm,
+        rainfall=weather.rain_mm,
         aqi=weather.aqi,
-        traffic_delay_min=traffic.delay_minutes,
+        traffic_delay=traffic.delay_minutes,
         zone=zone,
         updated_at=datetime.utcnow(),
     )

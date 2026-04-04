@@ -13,9 +13,10 @@ async def get_alerts(
 ):
     db = get_supabase()
 
-    # Get partner's zone
-    partner = db.table("partners").select("zone").eq("id", current["partner_id"]).single().execute()
-    zone = partner.data["zone"]
+    partner = db.table("partners").select("zone").eq("id", current["partner_id"]).execute()
+    if not partner.data:
+        raise HTTPException(404, "Partner not found")
+    zone = partner.data[0]["zone"]
 
     query = db.table("alerts") \
         .select("*") \

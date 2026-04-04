@@ -19,18 +19,27 @@ async def send_otp(mobile: str) -> bool:
     # Store OTP in Redis with TTL
     await redis.setex(f"{OTP_KEY_PREFIX}{mobile}", settings.OTP_TTL_SECONDS, otp)
 
-    # Send via Fast2SMS
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            "https://www.fast2sms.com/dev/bulkV2",
-            headers={"authorization": settings.FAST2SMS_API_KEY},
-            json={
-                "route": "otp",
-                "variables_values": otp,
-                "numbers": mobile,
-            },
-        )
-    return resp.status_code == 200
+    # In debug mode, print OTP to logs so you can test without a real SMS key
+    if settings.DEBUG:
+        print(f"[OTP DEBUG] mobile={mobile} otp={otp}", flush=True)
+
+    # Send via Fast2SMS — if it fails, still allow flow in debug mode
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://www.fast2sms.com/dev/bulkV2",
+                headers={"authorization": settings.FAST2SMS_API_KEY},
+                json={
+                    "route": "otp",
+                    "variables_values": otp,
+                    "numbers": mobile,
+                },
+                timeout=5.0,
+            )
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[OTP] SMS delivery failed: {e}", flush=True)
+        return settings.DEBUG  # allow flow to continue in dev
 
 
 async def verify_otp(mobile: str, otp: str) -> bool:

@@ -1,0 +1,11 @@
+# Trained model files (large binaries — regenerated via Dockerfile)
+models/
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/

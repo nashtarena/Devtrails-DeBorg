@@ -2,6 +2,13 @@ version: "3.9"
 
 services:
 
+  # ── ML Service ───────────────────────────────────────────────
+  ml:
+    build: ../ml
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
   # ── FastAPI App ───────────────────────────────────────────────
   api:
     build: .
@@ -12,8 +19,9 @@ services:
       - redis
       - kafka
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    working_dir: /project
     volumes:
-      - .:/app
+      - .:/project/app
     restart: unless-stopped
 
   # ── Claim Worker ──────────────────────────────────────────────
@@ -24,6 +32,7 @@ services:
       - redis
       - kafka
     command: python -m app.workers.claim_worker
+    working_dir: /project
     restart: unless-stopped
 
   # ── Alert Worker ──────────────────────────────────────────────
@@ -34,6 +43,7 @@ services:
       - redis
       - kafka
     command: python -m app.workers.alert_worker
+    working_dir: /project
     restart: unless-stopped
 
   # ── Zone Poller ───────────────────────────────────────────────
@@ -43,6 +53,7 @@ services:
     depends_on:
       - kafka
     command: python -m app.workers.zone_poller
+    working_dir: /project
     restart: unless-stopped
 
   # ── Redis ─────────────────────────────────────────────────────

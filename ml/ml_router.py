@@ -52,24 +52,12 @@ def _get_fraud_models():
 class PremiumRequest(BaseModel):
     zone:                 str   = Field(..., example="Velachery")
     month:                int   = Field(..., ge=1, le=12, example=11)
-    weather_severity:     float = Field(..., ge=0.0, le=1.0,
-                                        description="Normalised weather severity from OpenWeatherMap")
-    aqi_level:            float = Field(..., ge=0.0, le=1.0,
-                                        description="Normalised AQI from OpenAQ")
-    traffic_disruption:   float = Field(..., ge=0.0, le=1.0,
-                                        description="Normalised traffic blockage from TomTom")
+    weather_severity:     float = Field(..., ge=0.0, le=1.0)
+    aqi_level:            float = Field(..., ge=0.0, le=1.0)
+    traffic_disruption:   float = Field(..., ge=0.0, le=1.0)
     worker_tenure_weeks:  int   = Field(..., ge=0, example=24)
-    worker_claim_ratio:   float = Field(0.0, ge=0.0, le=1.0,
-                                        description="claims / weeks_insured; 0 for new workers")
-
-    @field_validator("zone")
-    @classmethod
-    def zone_must_be_known(cls, v):
-        from premium_model import ZONE_DEFAULTS
-        # Unknown zones get default values (graceful degradation)
-        if v not in ZONE_DEFAULTS:
-            logger.warning("Unknown zone '%s'; using default risk values.", v)
-        return v
+    worker_claim_ratio:   float = Field(0.0, ge=0.0, le=1.0)
+    weekly_income_inr:    float = Field(5000.0, ge=0, description="Worker's weekly income in INR")
 
 
 class PremiumResponse(BaseModel):
@@ -153,6 +141,7 @@ async def score_premium(req: PremiumRequest):
             traffic_disruption  = req.traffic_disruption,
             worker_tenure_weeks = req.worker_tenure_weeks,
             worker_claim_ratio  = req.worker_claim_ratio,
+            weekly_income_inr   = req.weekly_income_inr,
             model               = model,
             encoder             = encoder,
         )
@@ -305,3 +294,9 @@ async def model_info():
             "decisions":          ["AUTO_APPROVED", "FLAGGED", "AUTO_REJECTED"],
         },
     }
+
+# Standalone app entry point
+from fastapi import FastAPI
+
+app = FastAPI(title="GigShield ML Service", version="1.0.0")
+app.include_router(router, prefix="/ml", tags=["ML"])

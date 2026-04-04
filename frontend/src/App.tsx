@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, StyleSheet, StatusBar, Platform } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { AuthProvider, useAuth } from "./lib/AuthContext";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import OnboardingFlow from "./screens/OnboardingFlow";
 import LoginFlow from "./screens/LoginFlow";
@@ -11,8 +12,14 @@ import BottomNav from "./components/BottomNav";
 
 type Screen = "welcome" | "onboarding" | "login" | "home" | "activity" | "alerts" | "profile";
 
-const App = () => {
+const AppInner = () => {
   const [screen, setScreen] = useState<Screen>("welcome");
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    setScreen("welcome");
+  };
 
   const renderScreen = () => {
     switch (screen) {
@@ -44,7 +51,7 @@ const App = () => {
       case "alerts":
         return <AlertsScreen />;
       case "profile":
-        return <ProfileScreen />;
+        return <ProfileScreen onLogout={handleLogout} />;
       default:
         return null;
     }
@@ -65,14 +72,14 @@ const App = () => {
   );
 };
 
+const App = () => (
+  <AuthProvider>
+    <AppInner />
+  </AuthProvider>
+);
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  webContainer: {
-    minHeight: "100%",
-  },
+  container: { flex: 1, backgroundColor: "#ffffff" },
 });
 
 export default App;

@@ -10,15 +10,14 @@ router = APIRouter(prefix="/partner", tags=["partner"])
 @router.get("/profile", response_model=PartnerProfile)
 async def get_profile(current: dict = Depends(get_current_partner)):
     db = get_supabase()
-    result = db.table("partners").select("*").eq("id", current["partner_id"]).single().execute()
+    result = db.table("partners").select("*").eq("id", current["partner_id"]).execute()
     if not result.data:
         raise HTTPException(404, "Partner not found")
-    return result.data
+    return result.data[0]
 
 
 @router.put("/profile")
 async def update_profile(updates: dict, current: dict = Depends(get_current_partner)):
-    # Only allow safe fields to be updated
     allowed = {"name", "zone", "work_type", "weekly_income", "upi_id"}
     safe = {k: v for k, v in updates.items() if k in allowed}
     if not safe:
@@ -35,13 +34,11 @@ async def get_coverage(current: dict = Depends(get_current_partner)):
     cov = db.table("coverage") \
         .select("*") \
         .eq("partner_id", current["partner_id"]) \
-        .single() \
         .execute()
 
     if not cov.data:
         raise HTTPException(404, "No active coverage found")
 
-    # Aggregate claims stats
     claims = db.table("claims") \
         .select("amount, status") \
         .eq("partner_id", current["partner_id"]) \
@@ -51,7 +48,7 @@ async def get_coverage(current: dict = Depends(get_current_partner)):
     total_payout = sum(c["amount"] for c in claims.data if c["status"] == "paid")
 
     return CoverageStatus(
-        **cov.data,
+        **cov.data[0],
         total_claims=total_claims,
         total_payout=total_payout,
     )

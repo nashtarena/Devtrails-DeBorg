@@ -3,16 +3,17 @@ from app.schemas.auth import OTPRequest, OTPVerify, PartnerRegister, LoginReques
 from app.services.otp_service import send_otp, verify_otp
 from app.dependencies import create_access_token
 from app.database import get_supabase
+from app.config import get_settings
 import uuid
+
+settings = get_settings()
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/otp-request", status_code=202)
 async def request_otp(body: OTPRequest):
-    sent = await send_otp(body.mobile)
-    if not sent:
-        raise HTTPException(500, "Failed to send OTP")
+    await send_otp(body.mobile)
     return {"message": "OTP sent"}
 
 
@@ -26,6 +27,7 @@ async def verify_otp_endpoint(body: OTPVerify):
 
 @router.post("/register", response_model=TokenResponse)
 async def register(body: PartnerRegister):
+    body.normalize()
     valid = await verify_otp(body.mobile, body.otp)
     if not valid:
         raise HTTPException(400, "Invalid OTP")
@@ -52,12 +54,38 @@ async def register(body: PartnerRegister):
         "kyc_verified": False,
     }).execute()
 
-    # Create default coverage (Plus plan)
+    # Create coverage with ML-computed premium
     from datetime import datetime, timedelta
+    import httpx as _httpx
+
+    ml_premium = 29.0  # fallback
+    risk_tier  = "MEDIUM"
+    try:
+        async with _httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{settings.ML_SERVICE_URL}/ml/score/premium",
+                json={
+                    "zone": body.zone,
+                    "month": datetime.utcnow().month,
+                    "weather_severity": 0.4,
+                    "aqi_level": 0.5,
+                    "traffic_disruption": 0.3,
+                    "worker_tenure_weeks": 1,
+                    "worker_claim_ratio": 0.0,
+                    "weekly_income_inr": float(body.weekly_income),
+                },
+            )
+            if resp.status_code == 200:
+                ml_result  = resp.json()
+                ml_premium = ml_result["weekly_premium_inr"]
+                risk_tier  = ml_result["risk_tier"]
+    except Exception as e:
+        print(f"[Register] ML premium failed, using default: {e}")
+
     db.table("coverage").insert({
         "partner_id": partner_id,
-        "plan": "plus",
-        "weekly_premium": 29.0,
+        "plan": f"plus-{risk_tier.lower()}",
+        "weekly_premium": ml_premium,
         "is_active": True,
         "coverage_since": datetime.utcnow().isoformat(),
         "renewal_date": (datetime.utcnow() + timedelta(days=7)).isoformat(),
@@ -67,19 +95,26 @@ async def register(body: PartnerRegister):
     return TokenResponse(access_token=token, partner_id=partner_id)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", status_code=202)
 async def login(body: LoginRequest):
-    # Step 1 of login — validate partner exists, then OTP is sent separately
     db = get_supabase()
+
+    # Normalize partner ID same way as registration
+    swiggy_id = body.swiggy_partner_id
+    if not swiggy_id.startswith("SWG-"):
+        swiggy_id = f"SWG-{swiggy_id}"
+
     result = db.table("partners") \
         .select("id") \
         .eq("mobile", body.mobile) \
-        .eq("swiggy_partner_id", body.swiggy_partner_id) \
-        .single() \
+        .eq("swiggy_partner_id", swiggy_id) \
         .execute()
 
     if not result.data:
-        raise HTTPException(404, "Partner not found")
+        # Try without partner ID match — maybe they forgot it
+        result2 = db.table("partners").select("id, swiggy_partner_id").eq("mobile", body.mobile).execute()
+        print(f"[Login] mobile={body.mobile} swiggy_id={swiggy_id} found_by_mobile={result2.data}")
+        raise HTTPException(404, "Partner not found. Check your mobile number and Partner ID.")
 
     await send_otp(body.mobile)
     return {"message": "OTP sent for verification", "next": "POST /auth/otp-verify"}
@@ -92,10 +127,10 @@ async def login_verify(body: OTPVerify):
         raise HTTPException(400, "Invalid OTP")
 
     db = get_supabase()
-    result = db.table("partners").select("id").eq("mobile", body.mobile).single().execute()
+    result = db.table("partners").select("id").eq("mobile", body.mobile).execute()
     if not result.data:
         raise HTTPException(404, "Partner not found")
 
-    partner_id = result.data["id"]
+    partner_id = result.data[0]["id"]
     token = create_access_token({"sub": partner_id, "mobile": body.mobile})
     return TokenResponse(access_token=token, partner_id=partner_id)
