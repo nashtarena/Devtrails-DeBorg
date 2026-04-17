@@ -28,9 +28,6 @@ async def verify_otp_endpoint(body: OTPVerify):
 @router.post("/register", response_model=TokenResponse)
 async def register(body: PartnerRegister):
     body.normalize()
-    valid = await verify_otp(body.mobile, body.otp)
-    if not valid:
-        raise HTTPException(400, "Invalid OTP")
 
     db = get_supabase()
 
@@ -86,7 +83,7 @@ async def register(body: PartnerRegister):
 
     db.table("coverage").insert({
         "partner_id": partner_id,
-        "plan": "plus",
+        "plan": body.plan,
         "weekly_premium": ml_premium,
         "is_active": True,
         "coverage_since": datetime.utcnow().isoformat(),

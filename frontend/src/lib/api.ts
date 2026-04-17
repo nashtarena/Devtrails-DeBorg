@@ -37,7 +37,7 @@ export const api = {
     register: (data: {
       swiggy_partner_id: string; name: string; mobile: string; otp: string;
       weekly_income: number; work_type: string; zone: string; upi_id: string;
-      pan: string; aadhaar_last4: string;
+      pan: string; aadhaar_last4: string; plan?: string;
     }) => request<{ access_token: string; partner_id: string }>(
       "/auth/register", { method: "POST", body: JSON.stringify(data) }
     ),

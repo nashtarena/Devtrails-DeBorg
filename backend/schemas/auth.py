@@ -21,6 +21,7 @@ class PartnerRegister(BaseModel):
     aadhaar_last4: str = Field(..., min_length=4, max_length=4)
     pan: str
     upi_id: str
+    plan: str = Field(default="plus", pattern=r"^(basic|plus|shield)$")
 
     def normalize(self):
         self.work_type = self.work_type.lower().replace(" ", "-")

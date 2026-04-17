@@ -5,7 +5,6 @@ settings = get_settings()
 
 _redis: aioredis.Redis | None = None
 _use_memory_fallback = False
-_memory_store: dict = {}
 
 
 class MemoryRedis:
@@ -25,25 +24,40 @@ class MemoryRedis:
         self._store.pop(key, None)
         return True
 
+    async def ping(self):
+        return True
+
     async def close(self):
         self._store.clear()
+
+
+_memory_redis = MemoryRedis()
 
 
 async def get_redis():
     global _redis, _use_memory_fallback
     if _use_memory_fallback:
-        return MemoryRedis()
+        return _memory_redis
     if _redis is None:
         try:
-            _redis = await aioredis.from_url(
+            client = aioredis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
+                socket_connect_timeout=2,
             )
+            await client.ping()
+            _redis = client
         except Exception as e:
-            print(f"[Cache] Redis connection failed, using in-memory fallback: {e}")
+            print(f"[Cache] Redis unavailable, using in-memory fallback: {e}")
             _use_memory_fallback = True
-            return MemoryRedis()
+            return _memory_redis
+    try:
+        await _redis.ping()
+    except Exception:
+        _redis = None
+        _use_memory_fallback = True
+        return _memory_redis
     return _redis
 
 

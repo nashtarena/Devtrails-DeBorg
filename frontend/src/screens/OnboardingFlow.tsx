@@ -21,7 +21,8 @@ const steps = [
   { id: "aadhaar", title: "Aadhaar Verification", subtitle: "Quick KYC via OTP", icon: "verified-user" },
   { id: "pan", title: "PAN Card", subtitle: "For tax purposes", icon: "credit-card" },
   { id: "upi", title: "UPI ID", subtitle: "For instant payouts", icon: "account-balance-wallet" },
-  { id: "confirm", title: "Confirmation", subtitle: "Review your plan", icon: "check-circle" },
+  { id: "confirm", title: "Confirmation", subtitle: "Review your details", icon: "check-circle" },
+  { id: "plan", title: "Choose Your Plan", subtitle: "Select the coverage that fits you", icon: "shield" },
 ];
 
 const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
@@ -33,7 +34,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
   const [premiumLoading, setPremiumLoading] = useState(false);
   const [formData, setFormData] = useState({
     partnerId: "", mobile: "", otp: "", name: "", income: "", workType: "", location: "",
-    aadhaar: "", aadhaarOtp: "", pan: "", upi: "",
+    aadhaar: "", aadhaarOtp: "", pan: "", upi: "", plan: "plus",
   });
 
   const current = steps[step];
@@ -59,8 +60,26 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
       }
     }
 
+    // Verify OTP when leaving otp step
+    if (current.id === "otp") {
+      try {
+        setLoading(true);
+        await api.auth.verifyOtp(formData.mobile, formData.otp);
+      } catch (e: any) {
+        setError(e.message || "Invalid OTP. Please try again.");
+        setLoading(false);
+        return;
+      } finally {
+        setLoading(false);
+      }
+    }
+
     // Send OTP when leaving mobile step
     if (current.id === "mobile") {
+      if (!/^[6-9]\d{9}$/.test(formData.mobile)) {
+        setError("Enter a valid 10-digit mobile number starting with 6-9.");
+        return;
+      }
       try {
         setLoading(true);
         await api.auth.requestOtp(formData.mobile);
@@ -72,8 +91,8 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
         setLoading(false);
       }
     }
-    // Register on final confirm step
-    if (current.id === "confirm") {
+    // Register on final plan step
+    if (current.id === "plan") {
       try {
         setLoading(true);
         const res = await api.auth.register({
@@ -82,13 +101,14 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
           mobile: formData.mobile,
           otp: formData.otp,
           weekly_income: parseFloat(formData.income) || 0,
-          work_type: formData.workType.toLowerCase().replace(" ", "-"), // "Full-time" → "full-time"
+          work_type: formData.workType.toLowerCase().replace(" ", "-"),
           zone: formData.location,
           upi_id: formData.upi,
           pan: formData.pan,
           aadhaar_last4: formData.aadhaar.replace(/\s/g, "").slice(-4),
+          plan: formData.plan,
         });
-        setToken(res.access_token);  // set immediately before navigation
+        setToken(res.access_token);
         login(res.access_token, res.partner_id);
         onComplete();
         return;
@@ -330,6 +350,66 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
             </View>
           </View>
         );
+      case "plan": {
+        const plans = [
+          {
+            id: "basic", name: "Basic", icon: "umbrella", color: "#6b7280", bg: "#f3f4f6", border: "#d1d5db",
+            price: mlPremium ? `₹${Math.round(mlPremium.weekly_premium_inr * 0.7)}/wk` : "₹20/wk",
+            perks: ["Rain & heat coverage", "Auto claims", "Weekly payouts"],
+          },
+          {
+            id: "plus", name: "Plus", icon: "verified", color: "#2563eb", bg: "#eff6ff", border: "#93c5fd",
+            price: mlPremium ? `₹${Math.round(mlPremium.weekly_premium_inr)}/wk` : "₹29/wk",
+            perks: ["All Basic perks", "AQI & traffic coverage", "AI risk scoring", "Priority support"],
+            recommended: true,
+          },
+          {
+            id: "shield", name: "Shield", icon: "security", color: "#7c3aed", bg: "#f5f3ff", border: "#c4b5fd",
+            price: mlPremium ? `₹${Math.round(mlPremium.weekly_premium_inr * 1.4)}/wk` : "₹40/wk",
+            perks: ["All Plus perks", "Higher payout caps", "Accident coverage", "24/7 claim support"],
+          },
+        ];
+        return (
+          <View style={styles.planSection}>
+            {plans.map((p) => {
+              const selected = formData.plan === p.id;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  onPress={() => updateField("plan", p.id)}
+                  style={[styles.planCard, { borderColor: selected ? p.color : p.border, backgroundColor: selected ? p.bg : "#fff" }]}
+                >
+                  {p.recommended && (
+                    <View style={[styles.planBadge, { backgroundColor: p.color }]}>
+                      <Text style={styles.planBadgeText}>Recommended</Text>
+                    </View>
+                  )}
+                  <View style={styles.planCardHeader}>
+                    <View style={[styles.planIconWrap, { backgroundColor: p.bg, borderColor: p.border }]}>
+                      <Icon name={p.icon} size={20} color={p.color} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.planName, { color: p.color }]}>{p.name}</Text>
+                      <Text style={[styles.planPrice, { color: selected ? p.color : "#374151" }]}>{p.price}</Text>
+                    </View>
+                    <View style={[styles.planRadio, { borderColor: p.color }]}>
+                      {selected && <View style={[styles.planRadioFill, { backgroundColor: p.color }]} />}
+                    </View>
+                  </View>
+                  <View style={styles.planPerks}>
+                    {p.perks.map((perk) => (
+                      <View key={perk} style={styles.planPerkRow}>
+                        <Icon name="check-circle" size={14} color={p.color} />
+                        <Text style={styles.planPerkText}>{perk}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        );
+      }
       default:
         return null;
     }
@@ -670,6 +750,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 16,
   },
+  planSection: { gap: 12 },
+  planCard: { borderWidth: 2, borderRadius: 16, padding: 16, position: "relative", overflow: "hidden" },
+  planBadge: { position: "absolute", top: 0, right: 0, paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 10 },
+  planBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  planCardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
+  planIconWrap: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  planName: { fontSize: 16, fontWeight: "700" },
+  planPrice: { fontSize: 13, fontWeight: "600", marginTop: 2 },
+  planRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  planRadioFill: { width: 10, height: 10, borderRadius: 5 },
+  planPerks: { gap: 6 },
+  planPerkRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  planPerkText: { fontSize: 13, color: "#374151" },
 });
 
 export default OnboardingFlow;
