@@ -13,9 +13,9 @@ import uuid
 import httpx
 from datetime import datetime, timedelta, timezone
 from aiokafka import AIOKafkaConsumer
-from app.config import get_settings
-from app.database import get_supabase
-from app.services.payout_service import (
+from config import get_settings
+from database import get_supabase
+from services.payout_service import (
     calculate_payout_amount, send_payout,
     create_contact, create_fund_account,
 )

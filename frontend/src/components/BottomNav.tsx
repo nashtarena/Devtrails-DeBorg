@@ -1,6 +1,5 @@
 import React from "react";
 import { View, TouchableOpacity, Text, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon } from "./Icon";
 
 interface BottomNavProps {
@@ -16,10 +15,8 @@ const tabs = [
 ];
 
 const BottomNav = ({ active, onNavigate }: BottomNavProps) => {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+    <View style={[styles.container, { paddingTop: 12 }]}>
       <View style={styles.navRow}>
         {tabs.map((tab) => {
           const isActive = active === tab.id;

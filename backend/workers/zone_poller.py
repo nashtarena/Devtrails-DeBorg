@@ -12,11 +12,11 @@ How it works:
 """
 import asyncio
 from datetime import datetime, timezone, timedelta
-from app.config import get_settings
-from app.database import get_supabase
-from app.cache import get_redis
-from app.kafka_client import publish, close_producer
-from app.services.weather_service import get_weather, get_traffic_delay, ZONE_COORDINATES
+from config import get_settings
+from database import get_supabase
+from cache import get_redis
+from kafka_client import publish, close_producer
+from services.weather_service import get_weather, get_traffic_delay, ZONE_COORDINATES
 
 settings = get_settings()
 POLL_INTERVAL_SECONDS = 900   # 15 min

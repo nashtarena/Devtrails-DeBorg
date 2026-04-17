@@ -47,6 +47,7 @@
    - [Fraud Detection](#6-fraud-detection)
    - [Automated Payout Processing](#7-automated-payout-processing)
    - [Analytics & Dashboard](#8-analytics--dashboard)
+   - [Admin Dashboard System](#-admin-dashboard-system)
 8. [Adversarial Defense & Anti-Spoofing Strategy](#️-adversarial-defense--anti-spoofing-strategy)
 9. [Coverage Tiers & Pricing](#-coverage-tiers--pricing)
 10. [User Privileges](#-user-privileges)
@@ -1084,62 +1085,161 @@ secinsure/
 ### Prerequisites
 
 ```
-node >= 18
-python >= 3.11
-postgresql >= 14  (or sqlite - zero config for local dev)
+Node.js >= 18
+Python >= 3.11
+Redis (for caching & rate limiting)
+Kafka (for event streaming)
+PostgreSQL/Supabase (database)
 ```
 
-### 1. Clone
+### Running the Application
+
+The application has two parts: **Backend API** and **Frontend Dashboard**. Each runs in its own terminal.
+
+#### Terminal 1: Start the Backend Server
 
 ```bash
-git clone https://github.com/your-org/secinsure.git
-cd secinsure
+# Navigate to backend directory
+cd backend
+
+# Set Python path and start uvicorn server
+# On Windows PowerShell:
+$env:PYTHONPATH = "."
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+# On macOS/Linux bash:
+export PYTHONPATH=.
+python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 2. Frontend
+**Expected output:**
+```
+INFO:     Uvicorn running on http://127.0.0.1:8000
+INFO:     Application startup complete.
+```
+
+**Available endpoints:**
+- API Docs: http://localhost:8000/docs
+- Swagger UI: http://localhost:8000/docs (interactive API testing)
+- Admin API: http://localhost:8000/admin/*
+- Partner API: http://localhost:8000/partner/*
+- Health Check: http://localhost:8000/health
+
+#### Terminal 2: Start the Frontend Dev Server
 
 ```bash
-cd project
+# Navigate to frontend directory (in a NEW terminal)
+cd frontend
+
+# Install dependencies (first time only)
 npm install
+
+# Start dev server
 npm run dev
-# -> http://localhost:5173
 ```
 
-### 3. Python Backend
+**Expected output:**
+```
+VITE v8.0.8 ready in XXX ms
+
+➜  Local:   http://localhost:8080/
+```
+
+**Access the application:**
+- **Partner App Home**: http://localhost:8080/
+- **Admin Dashboard**: http://localhost:8080/admin (requires login)
+  - **Email**: admin@secinsure.com
+  - **Password**: admin123
+
+### Admin Dashboard Access
+
+The admin dashboard is protected and requires authentication:
+
+1. Navigate to http://localhost:8080/admin
+2. On the login screen, enter:
+   - **Email**: `admin@secinsure.com`
+   - **Password**: `admin123`
+3. Click "Admin Login"
+4. You'll now have access to:
+   - **Overview Tab**: Real-time statistics and claim summaries
+   - **Claims Tab**: View and manage all claims
+   - **Fraud Detection Tab**: Monitor flagged suspicious claims
+   - **Analytics Tab**: View charts and trends
+5. To logout, click the "Logout" button in the header
+
+### Testing the Partner App
+
+Once the backend and frontend are running:
+
+1. Visit http://localhost:8080
+2. Click "Get Started" to begin onboarding
+3. Use a valid 10-digit Indian mobile number (e.g., 9876543210)
+   - **Must start with 6, 7, 8, or 9**
+   - **Must be exactly 10 digits**
+4. Enter your Swiggy partner ID (e.g., SWG-12345)
+5. Complete the onboarding flow
+6. Login with your credentials
+
+### Troubleshooting
+
+#### CORS Errors
+If you see "CORS policy" errors in the browser console:
+- Ensure backend is running on `http://localhost:8000`
+- Ensure frontend is on `http://localhost:8080`
+- Check that CORS middleware is loaded in backend (should see it in startup logs)
+- Try clearing browser cache: `Ctrl+Shift+Delete` (Chrome) or `Cmd+Shift+Delete` (Mac)
+
+#### API Connection Errors (422, 500)
+- Check that both backend and frontend terminals show "running" status
+- Verify mobile number format (10 digits, starts with 6-9)
+- Try the API directly in Swagger UI: http://localhost:8000/docs
+- Check browser DevTools Network tab to see actual request/response
+
+#### Frontend Not Loading
+- Ensure `npm install` completed without errors
+- Clear node_modules: `rm -rf node_modules && npm install`
+- Restart dev server: `npm run dev`
+
+#### Backend Not Starting
+- Check Python version: `python --version` (should be 3.11+)
+- Install dependencies: `pip install -r requirements.txt`
+- Check .env file exists in backend/ directory
+- On Windows, ensure PowerShell execution policy allows scripts
+
+#### Port Already in Use
+If port 8000 or 8080 is already in use:
+```bash
+# Find and kill process on port 8000 (change for 8080 as needed)
+# Windows: netstat -ano | findstr :8000
+# Mac/Linux: lsof -i :8000
+```
+
+### Environment Setup
+
+The `.env` file in the `backend/` directory already contains test credentials. If you need to update them:
 
 ```bash
-cd project/python_backend
-python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env   # Add your API keys
-python run.py
-# -> http://localhost:8000
-# -> Swagger UI: http://localhost:8000/docs
+# Edit backend/.env with your own credentials:
+SUPABASE_URL=your-supabase-url
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-key
+OPENWEATHER_API_KEY=your-openweather-key
+RAZORPAY_KEY_ID=your-razorpay-key
+RAZORPAY_KEY_SECRET=your-razorpay-secret
 ```
 
-### 4. Delivery Platform Simulator
+### Admin Dashboard Features
 
-```bash
-cd project/delivery-api
-npm install && node index.js
-# -> http://localhost:3001
-# GET  /api/worker-data         simulated order / earnings data
-# POST /api/disruption-check    payout trigger logic
-# GET  /health                  service health check
-```
+Once both servers are running and you access http://localhost:8080/admin, you'll see:
 
-### 5. Run Tests
+- **Overview Tab**: Real-time stats, claim volume, fraud detection summary
+- **Claims Tab**: View all claims with status, approve/reject actions
+- **Fraud Detection Tab**: View flagged claims and suspicious patterns
+- **Analytics Tab**: Charts for claim trends, payout data, premium insights
 
-```bash
-# Full backend integration test
-cd project/python_backend && python test_backend.py
+### Stopping the Servers
 
-# Instant payout end-to-end test
-python test_instant_payout.py
-
-# Delivery API integration
-python test_delivery_api.py
-```
+Press `Ctrl+C` in each terminal to stop the servers.
 
 ---
 

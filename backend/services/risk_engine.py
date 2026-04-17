@@ -5,10 +5,10 @@ Risk Engine:
 - Publishes claim-trigger event to Kafka if threshold met
 """
 from datetime import datetime
-from app.config import get_settings
-from app.services.weather_service import get_weather, get_traffic_delay
-from app.kafka_client import publish
-from app.schemas.partner import RiskScore, LiveConditions
+from config import get_settings
+from services.weather_service import get_weather, get_traffic_delay
+from kafka_client import publish
+from schemas.partner import RiskScore, LiveConditions
 
 settings = get_settings()
 

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
 import { Icon } from "../components/Icon";
 import { shadowSm } from "../constants/shadows";
 import { api, setToken } from "../lib/api";
@@ -336,7 +336,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={back} style={styles.backButton}>
           <Icon name="arrow-back" size={22} color="#1f2937" />
@@ -377,7 +377,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
         </TouchableOpacity>
         {!!error && <Text style={{ color: "#ef4444", fontSize: 13, textAlign: "center", marginTop: 8 }}>{error}</Text>}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 

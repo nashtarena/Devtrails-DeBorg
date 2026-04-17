@@ -19,7 +19,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />
-        </Stack>
+          <Stack.Screen name="admin" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,7 +1,7 @@
 import random
 import httpx
-from app.cache import get_redis
-from app.config import get_settings
+from cache import get_redis
+from config import get_settings
 
 settings = get_settings()
 

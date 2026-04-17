@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import OnboardingFlow from "./screens/OnboardingFlow";
@@ -9,15 +8,18 @@ import DashboardScreen from "./screens/DashboardScreen";
 import ClaimsScreen from "./screens/ClaimsScreen";
 import AlertsScreen from "./screens/AlertsScreen";
 import ProfileScreen from "./screens/ProfileScreen";
+import AdminDashboardScreen from "./screens/AdminDashboardScreen";
+import AdminLoginScreen from "./screens/AdminLoginScreen";
 import BottomNav from "./components/BottomNav";
 
-type Screen = "welcome" | "onboarding" | "login" | "home" | "activity" | "alerts" | "profile";
+type Screen = "welcome" | "onboarding" | "login" | "home" | "activity" | "alerts" | "profile" | "adminLogin" | "admin";
 
 const AppInner = () => {
   const [screen, setScreen] = useState<Screen>("welcome");
   const [activityKey, setActivityKey] = useState(0);
   const { logout } = useAuth();
-  const insets = useSafeAreaInsets();
+  // Web-compatible safe area (no insets needed on web)
+  const insets = { top: 0, bottom: 0, left: 0, right: 0 };
   // Nav bar height = safe area top + icon row (~60px)
   const NAV_HEIGHT = Math.max(insets.top, 12) + 60;
 
@@ -39,6 +41,7 @@ const AppInner = () => {
           <WelcomeScreen
             onNewUser={() => setScreen("onboarding")}
             onExistingUser={() => setScreen("login")}
+            onAdmin={() => setScreen("adminLogin")}
           />
         );
       case "onboarding":
@@ -63,6 +66,15 @@ const AppInner = () => {
         return <AlertsScreen topPadding={NAV_HEIGHT} />;
       case "profile":
         return <ProfileScreen onLogout={handleLogout} topPadding={NAV_HEIGHT} />;
+      case "adminLogin":
+        return (
+          <AdminLoginScreen
+            onLogin={() => setScreen("admin")}
+            onBack={() => setScreen("welcome")}
+          />
+        );
+      case "admin":
+        return <AdminDashboardScreen onLogout={() => setScreen("welcome")} />;
       default:
         return null;
     }

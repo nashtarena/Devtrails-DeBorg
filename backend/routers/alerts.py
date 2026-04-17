@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
-from app.dependencies import get_current_partner
-from app.database import get_supabase
-from app.schemas.partner import AlertOut
+from dependencies import get_current_partner
+from database import get_supabase
+from schemas.partner import AlertOut
 
 router = APIRouter(prefix="/partner", tags=["alerts"])
 

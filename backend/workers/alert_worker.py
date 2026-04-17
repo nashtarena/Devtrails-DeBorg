@@ -11,8 +11,8 @@ import json
 import uuid
 from datetime import datetime
 from aiokafka import AIOKafkaConsumer
-from app.config import get_settings
-from app.database import get_supabase
+from config import get_settings
+from database import get_supabase
 
 settings = get_settings()
 

@@ -3,7 +3,6 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, StatusBar,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Icon } from "../components/Icon";
 import { shadowSm, shadowMd } from "../constants/shadows";
 import { api } from "../lib/api";
@@ -70,9 +69,9 @@ const DashboardScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color="#2563eb" />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -100,7 +99,7 @@ const DashboardScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
     : "--";
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -331,7 +330,7 @@ const DashboardScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 

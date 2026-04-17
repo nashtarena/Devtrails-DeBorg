@@ -1,5 +1,5 @@
-const BASE_URL = "http://192.168.1.33:8000";
-const ML_URL   = "http://192.168.1.33:8001";
+const BASE_URL = "http://localhost:8000";
+const ML_URL   = "http://localhost:8001";
 
 // Shared token store — single source of truth
 const store = { token: null as string | null };

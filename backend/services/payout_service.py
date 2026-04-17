@@ -4,7 +4,7 @@ Flow: create contact → create fund account (UPI) → create payout
 """
 import httpx
 import base64
-from app.config import get_settings
+from config import get_settings
 
 settings = get_settings()
 
@@ -98,3 +98,102 @@ def calculate_payout_amount(trigger_type: str, score: int, plan: str) -> float:
 
     amount = base * multiplier * severity
     return round(max(settings.MIN_PAYOUT_INR, min(settings.MAX_PAYOUT_INR, amount)), 2)
+
+
+# Admin Dashboard Payout Functions
+
+async def process_admin_payout(claim_id: str, amount: float) -> dict:
+    """
+    Process payout for approved claim - instant mock transaction
+    Used by admin dashboard to manually trigger payouts
+    """
+    from datetime import datetime
+    from database import get_supabase
+    import uuid
+    
+    db = get_supabase()
+    
+    # Get claim details
+    claim_result = db.table("claims").select("*").eq("id", claim_id).execute()
+    if not claim_result.data:
+        return {
+            "status": "failed",
+            "amount": amount,
+            "claim_id": claim_id,
+            "transaction_id": None,
+            "message": "Claim not found",
+            "timestamp": datetime.utcnow()
+        }
+    
+    claim = claim_result.data[0]
+    
+    # Verify claim is approved or can be paid
+    if claim.get("status") not in ("approved", "processing"):
+        return {
+            "status": "failed",
+            "amount": amount,
+            "claim_id": claim_id,
+            "transaction_id": None,
+            "message": "Only approved claims can be paid out",
+            "timestamp": datetime.utcnow()
+        }
+    
+    # Generate transaction ID
+    transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
+    
+    # Update claim with payout details
+    try:
+        update_result = db.table("claims").update({
+            "status": "paid",
+            "paid_at": datetime.utcnow().isoformat(),
+            "transaction_id": transaction_id
+        }).eq("id", claim_id).execute()
+        
+        # Log payout in cache for analytics
+        from cache import get_redis
+        redis = await get_redis()
+        payout_key = f"payouts:{datetime.utcnow().date().isoformat()}"
+        await redis.hincrby(payout_key, "count", 1)
+        await redis.hincrbyfloat(payout_key, "total_amount", amount)
+        await redis.expire(payout_key, 86400 * 7)  # 7 days retention
+        
+        return {
+            "status": "success",
+            "amount": amount,
+            "claim_id": claim_id,
+            "transaction_id": transaction_id,
+            "message": "Payout processed successfully",
+            "timestamp": datetime.utcnow()
+        }
+    except Exception as e:
+        return {
+            "status": "failed",
+            "amount": amount,
+            "claim_id": claim_id,
+            "transaction_id": None,
+            "message": f"Payout processing failed: {str(e)}",
+            "timestamp": datetime.utcnow()
+        }
+
+
+async def get_payout_summary() -> dict:
+    """
+    Get today's payout summary for admin dashboard
+    """
+    from datetime import datetime
+    from cache import get_redis
+    
+    redis = await get_redis()
+    today = datetime.utcnow().date().isoformat()
+    payout_key = f"payouts:{today}"
+    
+    payout_data = await redis.hgetall(payout_key)
+    
+    count = payout_data.get(b"count", 0) if payout_data else 0
+    amount = payout_data.get(b"total_amount", 0.0) if payout_data else 0.0
+    
+    return {
+        "date": today,
+        "total_payouts": int(count) if isinstance(count, bytes) else count,
+        "total_amount": float(amount) if isinstance(amount, bytes) else amount
+    }

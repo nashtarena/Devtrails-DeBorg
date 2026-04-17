@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Icon } from "../components/Icon";
 import { shadowMd } from "../constants/shadows";
 import { api } from "../lib/api";
@@ -31,9 +31,9 @@ const ProfileScreen = ({ onLogout, topPadding = 0 }: { onLogout: () => void; top
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
+      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
         <ActivityIndicator size="large" color="#2563eb" />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -53,7 +53,7 @@ const ProfileScreen = ({ onLogout, topPadding = 0 }: { onLogout: () => void; top
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={[styles.scrollContent]}>
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>
@@ -105,7 +105,7 @@ const ProfileScreen = ({ onLogout, topPadding = 0 }: { onLogout: () => void; top
         </TouchableOpacity>
         <View style={{ height: 20 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

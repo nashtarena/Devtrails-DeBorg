@@ -1,15 +1,16 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Icon } from "../components/Icon";
 
 interface WelcomeScreenProps {
   onNewUser: () => void;
   onExistingUser: () => void;
+  onAdmin: () => void;
 }
 
-const WelcomeScreen = ({ onNewUser, onExistingUser }: WelcomeScreenProps) => {
+const WelcomeScreen = ({ onNewUser, onExistingUser, onAdmin }: WelcomeScreenProps) => {
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.content}>
         {/* Hero */}
         <View style={styles.hero}>
@@ -43,9 +44,13 @@ const WelcomeScreen = ({ onNewUser, onExistingUser }: WelcomeScreenProps) => {
           <TouchableOpacity style={styles.secondaryButton} onPress={onExistingUser}>
             <Text style={styles.secondaryButtonText}>I already have an account</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.adminButton} onPress={onAdmin}>
+            <Icon name="admin-panel-settings" size={18} color="#6b7280" />
+            <Text style={styles.adminButtonText}>Admin Login</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -134,6 +139,20 @@ const styles = StyleSheet.create({
     color: "#374151",
     fontWeight: "600",
     fontSize: 16,
+  },
+  adminButton: {
+    paddingVertical: 12,
+    borderRadius: 16,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  adminButtonText: {
+    color: "#6b7280",
+    fontWeight: "500",
+    fontSize: 14,
   },
 });
 

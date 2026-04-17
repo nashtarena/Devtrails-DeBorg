@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
       "react-native": "react-native-web",
       "react-native/Libraries/EventEmitter/NativeEventEmitter": "react-native-web/dist/vendor/react-native/NativeEventEmitter",
+      "react-native/Libraries/Utilities/codegenNativeComponent": "react-native-web/dist/vendor/react-native/Utilities/codegenNativeComponent",
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
@@ -27,5 +28,9 @@ export default defineConfig(({ mode }) => ({
     esbuildOptions: {
       resolveExtensions: [".ts", ".tsx", ".js", ".jsx", ".json"],
     },
+    include: ["react", "react-dom", "react-native-web"],
+  },
+  ssr: {
+    external: ["@expo/vector-icons", "react-native-vector-icons"],
   },
 }));

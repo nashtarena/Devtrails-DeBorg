@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.dependencies import get_current_partner
-from app.database import get_supabase
-from app.schemas.partner import PartnerProfile, CoverageStatus
+from dependencies import get_current_partner
+from database import get_supabase
+from schemas.partner import PartnerProfile, CoverageStatus
 from datetime import datetime
 
 router = APIRouter(prefix="/partner", tags=["partner"])

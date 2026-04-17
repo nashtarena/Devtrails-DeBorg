@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Icon } from "../components/Icon";
 import { shadowSm } from "../constants/shadows";
 import { api } from "../lib/api";
@@ -37,9 +37,9 @@ const ClaimsScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color="#2563eb" />
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -62,7 +62,7 @@ const ClaimsScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
     .sort(([, a], [, b]) => b - a);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <ScrollView contentContainerStyle={[styles.scroll]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.header}>
@@ -222,7 +222,7 @@ const ClaimsScreen = ({ topPadding = 0 }: { topPadding?: number }) => {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 

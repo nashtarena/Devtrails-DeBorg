@@ -1,6 +1,5 @@
 import React from "react";
 import { Platform } from "react-native";
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 
 interface IconProps {
   name: string;
@@ -125,6 +124,8 @@ export const Icon: React.FC<IconProps> = ({ name, size, color }) => {
     return <MaterialIconWeb name={name} size={size} color={color} />;
   }
 
+  // Lazy load MaterialIcons only on native platforms
+  const MaterialIcons = require("@expo/vector-icons/MaterialIcons").default;
   const glyph = materialNameMap[name] ?? name;
   return <MaterialIcons name={glyph as any} size={size} color={color} />;
 };

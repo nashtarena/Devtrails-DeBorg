@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from app.dependencies import get_current_partner
-from app.database import get_supabase
-from app.schemas.partner import ClaimsListResponse, ClaimOut, ClaimTimelineEvent
-from app.services.risk_engine import evaluate_risk, get_live_conditions
-from app.config import get_settings
+from dependencies import get_current_partner
+from database import get_supabase
+from schemas.partner import ClaimsListResponse, ClaimOut, ClaimTimelineEvent
+from services.risk_engine import evaluate_risk, get_live_conditions
+from config import get_settings
 
 settings = get_settings()
 
@@ -176,7 +176,7 @@ async def live_conditions(current: dict = Depends(get_current_partner)):
 # ── Manual claim submission with device signals ───────────────────────────
 from pydantic import BaseModel, Field
 from typing import Optional
-from app.kafka_client import publish
+from kafka_client import publish
 from datetime import datetime
 
 class ClaimSubmitRequest(BaseModel):
@@ -292,7 +292,7 @@ async def simulate_disruption(
     Loss = (daily_income / 16 working hours) × duration_hours × productivity_loss_pct
     Only extreme events qualify (matching real thresholds).
     """
-    from app.cache import get_redis
+    from cache import get_redis
     from datetime import timezone, timedelta
 
     db = get_supabase()
@@ -376,7 +376,7 @@ async def simulate_disruption(
 # ── Weekly loss tracker ───────────────────────────────────────────────────
 @router.get("/weekly-loss")
 async def get_weekly_loss(current: dict = Depends(get_current_partner)):
-    from app.cache import get_redis
+    from cache import get_redis
     from datetime import timezone, timedelta
 
     redis  = await get_redis()

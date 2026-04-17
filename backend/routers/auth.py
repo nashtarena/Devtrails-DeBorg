@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status
-from app.schemas.auth import OTPRequest, OTPVerify, PartnerRegister, LoginRequest, TokenResponse
-from app.services.otp_service import send_otp, verify_otp
-from app.dependencies import create_access_token
-from app.database import get_supabase
-from app.config import get_settings
+from schemas.auth import OTPRequest, OTPVerify, PartnerRegister, LoginRequest, TokenResponse
+from services.otp_service import send_otp, verify_otp
+from dependencies import create_access_token
+from database import get_supabase
+from config import get_settings
 import uuid
 
 settings = get_settings()
