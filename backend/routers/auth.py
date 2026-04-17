@@ -4,7 +4,9 @@ from services.otp_service import send_otp, verify_otp
 from dependencies import create_access_token
 from database import get_supabase
 from config import get_settings
+from services.ml_service import MLService
 import uuid
+from datetime import datetime, timedelta
 
 settings = get_settings()
 
@@ -57,29 +59,19 @@ async def register(body: PartnerRegister):
     }).execute()
 
     # Create coverage with ML-computed premium
-    from datetime import datetime, timedelta
-    import httpx as _httpx
-
     ml_premium = 29.0  # fallback
     risk_tier  = "MEDIUM"
-    try:
-        async with _httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                f"{settings.ML_SERVICE_URL}/ml/score/premium",
-                json={
-                    "zone":              body.zone,
-                    "work_type":         body.work_type,
-                    "weekly_income_inr": float(body.weekly_income),
-                    "tenure_weeks":      1,
-                    "claim_ratio":       0.0,
-                },
-            )
-            if resp.status_code == 200:
-                ml_result  = resp.json()
-                ml_premium = ml_result["weekly_premium_inr"]
-                risk_tier  = ml_result["risk_tier"]
-    except Exception as e:
-        print(f"[Register] ML premium failed, using default: {e}")
+    
+    ml_result = await MLService.get_premium_score(
+        zone=body.zone,
+        work_type=body.work_type,
+        weekly_income_inr=float(body.weekly_income),
+        tenure_weeks=1,
+        claim_ratio=0.0
+    )
+    if ml_result:
+        ml_premium = ml_result["weekly_premium_inr"]
+        risk_tier  = ml_result["risk_tier"]
 
     db.table("coverage").insert({
         "partner_id": partner_id,
@@ -147,10 +139,13 @@ async def check_partner_exists(swiggy_partner_id: str):
 @router.post("/estimate-premium")
 async def estimate_premium(body: dict):
     """Unauthenticated ML premium estimate — used during onboarding."""
-    import httpx as _httpx
-    try:
-        async with _httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{settings.ML_SERVICE_URL}/ml/score/premium", json=body)
-            return resp.json()
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    res = await MLService.get_premium_score(
+        zone=body.get("zone", ""),
+        work_type=body.get("work_type", "full-time"),
+        weekly_income_inr=float(body.get("weekly_income_inr", 5000)),
+        tenure_weeks=body.get("tenure_weeks", 1),
+        claim_ratio=body.get("claim_ratio", 0.0)
+    )
+    if not res:
+        raise HTTPException(500, "Premium estimation service currently unavailable")
+    return res

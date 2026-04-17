@@ -3,6 +3,7 @@ from dependencies import get_current_partner
 from database import get_supabase
 from schemas.partner import ClaimsListResponse, ClaimOut, ClaimTimelineEvent
 from services.risk_engine import evaluate_risk, get_live_conditions
+from services.ml_service import MLService
 from config import get_settings
 
 settings = get_settings()
@@ -101,23 +102,13 @@ async def get_risk_score(current: dict = Depends(get_current_partner)):
     claim_ratio  = min(total_claims / 52, 1.0)  # normalise over a year
 
     # Call ML premium model
-    ml_result = None
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                f"{settings.ML_SERVICE_URL}/ml/score/premium",
-                json={
-                    "zone":              zone,
-                    "work_type":         partner.data[0].get("work_type", "full-time"),
-                    "weekly_income_inr": weekly_income,
-                    "tenure_weeks":      10,
-                    "claim_ratio":       round(claim_ratio, 3),
-                },
-            )
-            if resp.status_code == 200:
-                ml_result = resp.json()
-    except Exception as e:
-        print(f"[RiskScore] ML call failed: {e}")
+    ml_result = await MLService.get_premium_score(
+        zone=zone,
+        work_type=partner.data[0].get("work_type", "full-time"),
+        weekly_income_inr=weekly_income,
+        tenure_weeks=10,
+        claim_ratio=round(claim_ratio, 3),
+    )
 
     # Convert ML risk_tier to 0-100 score
     tier_score = {"LOW": 20, "MEDIUM": 55, "HIGH": 85}
@@ -213,24 +204,9 @@ async def submit_claim(
 
     # Step 1: lightweight location pre-check
     location_warning = None
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.post(
-                f"{settings.ML_SERVICE_URL}/ml/validate/location",
-                json={
-                    "worker_id": current["partner_id"],
-                    "gps_accuracy_m": body.gps_accuracy_m,
-                    "accel_norm": body.accel_norm,
-                    "network_type": body.network_type,
-                    "battery_drain_pct_per_hr": body.battery_drain_pct_per_hr,
-                },
-            )
-            if resp.status_code == 200:
-                loc = resp.json()
-                if loc.get("suspicious"):
-                    location_warning = loc.get("recommendation")
-    except Exception as e:
-        print(f"[ClaimSubmit] Location pre-check failed: {e}")
+    loc_check = await MLService.validate_location(current["partner_id"], body.dict())
+    if loc_check and loc_check.get("suspicious"):
+        location_warning = loc_check.get("recommendation")
 
     # Step 2: get live conditions to validate trigger
     live = await get_live_conditions(zone)
@@ -428,10 +404,13 @@ async def get_weekly_loss(current: dict = Depends(get_current_partner)):
 # ── ML premium proxy (so mobile app doesn't need to reach port 8001) ─────
 @router.post("/ml-premium")
 async def ml_premium_proxy(body: dict, current: dict = Depends(get_current_partner)):
-    import httpx
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{settings.ML_SERVICE_URL}/ml/score/premium", json=body)
-            return resp.json()
-    except Exception as e:
-        raise HTTPException(500, str(e))
+    res = await MLService.get_premium_score(
+        zone=body.get("zone", ""),
+        work_type=body.get("work_type", "full-time"),
+        weekly_income_inr=body.get("weekly_income_inr", 5000),
+        tenure_weeks=body.get("tenure_weeks", 10),
+        claim_ratio=body.get("claim_ratio", 0.0)
+    )
+    if not res:
+        raise HTTPException(500, "ML service unavailable")
+    return res

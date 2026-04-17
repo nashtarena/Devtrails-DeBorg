@@ -7,7 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from config import get_settings
 from cache import close_redis
 from kafka_client import close_producer
-from routers import auth, partner, claims, alerts, admin
+from routers import auth, partner, claims, alerts, admin, telemetry
 
 settings = get_settings()
 
@@ -70,6 +70,7 @@ app.include_router(partner.router)
 app.include_router(claims.router)
 app.include_router(alerts.router)
 app.include_router(admin.router)
+app.include_router(telemetry.router)
 
 
 @app.get("/health")

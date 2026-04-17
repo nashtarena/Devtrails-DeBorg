@@ -1,5 +1,5 @@
 """
-GigShield ML Service
+SecInsure ML Service
 
 Endpoints:
   POST /ml/score/premium     → weekly premium (income + zone + work_type)
@@ -19,7 +19,7 @@ from premium_model import predict_premium, load_premium_model
 from claim_model   import predict_claim_amount, load_claim_model
 from fraud_model   import predict_fraud, load_fraud_models, ClaimDecision
 
-logger = logging.getLogger("gigshield.ml")
+logger = logging.getLogger("secinsure.ml")
 router = APIRouter()
 
 
@@ -196,5 +196,5 @@ async def health():
 
 # ── Standalone app ─────────────────────────────────────────────────────────
 from fastapi import FastAPI
-app = FastAPI(title="GigShield ML Service", version="2.0.0")
+app = FastAPI(title="SecInsure ML Service", version="2.0.0")
 app.include_router(router, prefix="/ml", tags=["ML"])

@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     FAST2SMS_API_KEY: str  # Indian SMS gateway
 
     # ML Service
-    ML_SERVICE_URL: str = "http://ml:8001"
+    ML_SERVICE_URL: str = "http://localhost:8001"
     RAIN_THRESHOLD_MM: float = 40.0       # Heavy rain
     HEAT_THRESHOLD_CELSIUS: float = 42.0  # Extreme heat
     AQI_THRESHOLD: int = 300              # Hazardous AQI

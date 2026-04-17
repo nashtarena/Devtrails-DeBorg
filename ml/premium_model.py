@@ -1,5 +1,5 @@
 """
-GigShield - Premium Model
+SecInsure - Premium Model
 Weekly premium = f(income, zone_risk, work_type, claim_history)
 Weather/traffic do NOT affect premium.
 """
@@ -14,8 +14,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.preprocessing import OrdinalEncoder
 
-MODEL_PATH   = Path("models/premium_model.joblib")
-ENCODER_PATH = Path("models/premium_encoder.joblib")
+MODEL_DIR    = Path(__file__).parent / "models"
+MODEL_PATH   = MODEL_DIR / "premium_model.joblib"
+ENCODER_PATH = MODEL_DIR / "premium_encoder.joblib"
 
 FEATURE_COLS = [
     "zone", "work_type", "disruption_freq", "flood_risk",
@@ -67,7 +68,7 @@ def train_premium_model(data_path: str = "data/premium_train.csv") -> None:
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
     preds = model.predict(X_val)
-    print(f"  MAE: ₹{mean_absolute_error(y_val, preds):.2f}  R²: {r2_score(y_val, preds):.4f}")
+    print(f"  MAE: INR {mean_absolute_error(y_val, preds):.2f}  R2: {r2_score(y_val, preds):.4f}")
 
     fi = pd.Series(model.feature_importances_, index=FEATURE_COLS).nlargest(5)
     print("  Top features:", dict(fi.round(3)))
@@ -75,7 +76,7 @@ def train_premium_model(data_path: str = "data/premium_train.csv") -> None:
     Path("models").mkdir(exist_ok=True)
     joblib.dump(model, MODEL_PATH)
     joblib.dump(encoder, ENCODER_PATH)
-    print(f"  Saved → {MODEL_PATH}")
+    print(f"  Saved -> {MODEL_PATH}")
 
 
 def load_premium_model():
@@ -153,4 +154,4 @@ if __name__ == "__main__":
         ("Part ₹5000 part-time Saket",    dict(zone="Saket",    work_type="part-time",  weekly_income_inr=5000)),
     ]:
         r = predict_premium(**kwargs, model=model, encoder=encoder)
-        print(f"  {label}: ₹{r.weekly_premium_inr}/week  tier={r.risk_tier}")
+        print(f"  {label}: INR {r.weekly_premium_inr}/week  tier={r.risk_tier}")

@@ -19,6 +19,7 @@ from services.payout_service import (
     calculate_payout_amount, send_payout,
     create_contact, create_fund_account,
 )
+from services.ml_service import MLService
 
 settings = get_settings()
 
@@ -78,35 +79,17 @@ async def process_claim(event: dict):
     # ── 3. ML Fraud check ─────────────────────────────────────────────────
     is_fraud     = False
     reject_reason = ""
-    device = event.get("device_signals", {})
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(
-                f"{settings.ML_SERVICE_URL}/ml/score/fraud",
-                json={
-                    "claim_id":                   claim_id,
-                    "gps_accuracy_m":             device.get("gps_accuracy_m", 14.0),
-                    "accel_norm":                 device.get("accel_norm", 10.5),
-                    "location_velocity_kmh":      device.get("location_velocity_kmh", 20.0),
-                    "network_type":               device.get("network_type", 1),
-                    "order_acceptance_latency_s": device.get("order_acceptance_latency_s", 30.0),
-                    "battery_drain_pct_per_hr":   device.get("battery_drain_pct_per_hr", 12.0),
-                    "peer_claims_same_window":    device.get("peer_claims_same_window", 2),
-                    "zone_claim_spike_ratio":     device.get("zone_claim_spike_ratio", 1.5),
-                    "device_subnet_overlap":      device.get("device_subnet_overlap", 0),
-                    "claim_time_std_minutes":     device.get("claim_time_std_minutes", 45.0),
-                },
-            )
-            if resp.status_code == 200:
-                fraud = resp.json()
-                if fraud["decision"] == "AUTO_REJECTED":
-                    is_fraud      = True
-                    reject_reason = fraud["explanation"]
-                    print(f"[ClaimWorker] ML rejected {claim_id}: {fraud['triggered_signals']}")
-                elif fraud["decision"] == "FLAGGED":
-                    print(f"[ClaimWorker] ML flagged {claim_id}: {fraud['triggered_signals']}")
-    except Exception as e:
-        print(f"[ClaimWorker] Fraud check failed, proceeding: {e}")
+    device_signals = event.get("device_signals", {})
+    
+    ml_res = await MLService.predict_fraud(claim_id, device_signals)
+    if ml_res:
+        if ml_res.get("decision") in ("BLOCK", "AUTO_REJECTED"):
+            is_fraud      = True
+            reject_reason = ml_res.get("explanation", "High fraud probability")
+            print(f"[ClaimWorker] ML rejected {claim_id}: {ml_res.get('triggered_signals')}")
+        elif ml_res.get("decision") == "FLAGGED":
+            print(f"[ClaimWorker] ML flagged {claim_id}: {ml_res.get('triggered_signals')}")
+    
 
     if is_fraud:
         db.table("claims").insert({
@@ -128,21 +111,14 @@ async def process_claim(event: dict):
     else:
         # Manual/simulated claim: use ML model
         amount = calculate_payout_amount(trigger_type, score, coverage.data[0]["plan"])
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.post(
-                    f"{settings.ML_SERVICE_URL}/ml/score/claim",
-                    json={
-                        "trigger_type":      trigger_type if trigger_type != "weekly_disruption" else "heavy_rain",
-                        "severity":          round(float(severity), 3),
-                        "weekly_income_inr": weekly_income,
-                    },
-                )
-                if resp.status_code == 200:
-                    amount = resp.json()["claim_amount"]
-                    print(f"[ClaimWorker] ML payout: ₹{amount} for {trigger_type} sev={severity:.2f}")
-        except Exception as e:
-            print(f"[ClaimWorker] ML claim amount failed, using formula: {e}")
+        ml_payout = await MLService.calculate_claim_amount(
+            trigger_type=trigger_type if trigger_type != "weekly_disruption" else "heavy_rain",
+            severity=round(float(severity), 3),
+            weekly_income_inr=weekly_income
+        )
+        if ml_payout:
+            amount = ml_payout["claim_amount"]
+            print(f"[ClaimWorker] ML payout: ₹{amount} for {trigger_type} sev={severity:.2f}")
 
     # ── 5. Create claim record ────────────────────────────────────────────
     db.table("claims").insert({

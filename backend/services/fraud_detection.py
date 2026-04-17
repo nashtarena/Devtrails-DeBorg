@@ -11,7 +11,9 @@ from datetime import datetime, timedelta
 from database import get_supabase
 from cache import get_redis
 from config import get_settings
-from typing import Optional
+from typing import Optional, Dict, Any
+from services.ml_service import MLService
+from services.telemetry_service import TelemetryService
 
 settings = get_settings()
 
@@ -20,12 +22,14 @@ async def run_fraud_checks(
     partner_id: str,
     zone: str,
     trigger_type: str,
+    claim_id: Optional[str] = None,
     location: Optional[dict] = None,
-    weather_data: Optional[dict] = None
-) -> tuple[bool, str]:
+    weather_data: Optional[dict] = None,
+    device_signals: Optional[Dict[str, Any]] = None
+) -> tuple[bool, str, Dict[str, Any]]:
     """
-    Returns (is_fraud, reason). If is_fraud=True, claim is rejected.
-    Enhanced with weather and GPS validation.
+    Returns (is_fraud, reason, ml_metadata). If is_fraud=True, claim is rejected.
+    Enhanced with ML-based fraud detection and device telemetry.
     """
     db = get_supabase()
     redis = await get_redis()
@@ -36,26 +40,26 @@ async def run_fraud_checks(
     weekly_key = f"claims:weekly:{partner_id}:{monday.isoformat()}"
     weekly_count = await redis.get(weekly_key)
     if weekly_count and int(weekly_count) >= 1:
-        return True, "weekly_limit_exceeded"
+        return True, "weekly_limit_exceeded", {}
 
     # 2. Velocity check: same trigger type in last 60 min
     velocity_key = f"claims:velocity:{partner_id}:{trigger_type}"
     if await redis.get(velocity_key):
-        return True, "high_velocity"
+        return True, "high_velocity", {}
 
     # 3. Location check: partner's registered zone must match incident zone
     partner = db.table("partners").select("zone").eq("id", partner_id).execute()
     if partner.data and partner.data[0]["zone"] != zone:
-        return True, "gps_mismatch"
+        return True, "gps_mismatch", {}
 
     # 4. Weather validation
     if weather_data and not validate_weather_claim(trigger_type, weather_data):
-        return True, "weather_mismatch"
+        return True, "weather_mismatch", {}
 
     # 5. GPS location validation (if coordinates provided)
     if location and partner.data:
         if not validate_gps_location(location, zone):
-            return True, "gps_mismatch"
+            return True, "gps_mismatch", {}
 
     # 6. Ring detection: if >50 partners in same zone claimed same trigger in last 10 min
     ring_key = f"ring:{zone}:{trigger_type}"
@@ -69,9 +73,26 @@ async def run_fraud_checks(
 
     # 7. Duplicate claim check
     if await check_duplicate_claim(partner_id, trigger_type):
-        return True, "duplicate_claim"
+        return True, "duplicate_claim", {}
 
-    return False, ""
+    # 8. ML Fraud Detection
+    ml_metadata = {}
+    if claim_id:
+        # Fetch telemetry if not provided
+        if not device_signals:
+            device_signals = await TelemetryService.get_device_telemetry(partner_id)
+            
+        ml_res = await MLService.predict_fraud(claim_id, device_signals)
+        if ml_res:
+            ml_metadata = ml_res
+            # If ML decision is BLOCK, reject the claim
+            if ml_res.get("decision") == "BLOCK":
+                return True, f"ml_fraud_detected: {ml_res.get('explanation')}", ml_metadata
+            # If high anomaly score, flag for review
+            if ml_res.get("anomaly_score", 0) > 0.8:
+                ml_metadata["flagged"] = True
+
+    return False, "", ml_metadata
 
 
 def validate_weather_claim(trigger_type: str, weather_data: dict) -> bool:

@@ -1,5 +1,5 @@
 """
-GigShield - Claim Amount Model
+SecInsure - Claim Amount Model
 Payout = f(trigger_type, severity, weekly_income)
 Higher income + higher severity = higher payout.
 """
@@ -14,8 +14,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
 from sklearn.preprocessing import OrdinalEncoder
 
-MODEL_PATH   = Path("models/claim_model.joblib")
-ENCODER_PATH = Path("models/claim_encoder.joblib")
+MODEL_DIR    = Path(__file__).parent / "models"
+MODEL_PATH   = MODEL_DIR / "claim_model.joblib"
+ENCODER_PATH = MODEL_DIR / "claim_encoder.joblib"
 
 FEATURE_COLS = ["trigger_type", "severity", "income_norm"]
 
@@ -49,12 +50,12 @@ def train_claim_model(data_path: str = "data/claim_train.csv") -> None:
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
     preds = model.predict(X_val)
-    print(f"  MAE: ₹{mean_absolute_error(y_val, preds):.2f}")
+    print(f"  MAE: INR {mean_absolute_error(y_val, preds):.2f}")
 
     Path("models").mkdir(exist_ok=True)
     joblib.dump(model, MODEL_PATH)
     joblib.dump(encoder, ENCODER_PATH)
-    print(f"  Saved → {MODEL_PATH}")
+    print(f"  Saved -> {MODEL_PATH}")
 
 
 def load_claim_model():
@@ -118,4 +119,4 @@ if __name__ == "__main__":
         ("traffic",      0.9, 7000),
     ]:
         r = predict_claim_amount(t, sev, inc, model=model, encoder=encoder)
-        print(f"  {t} sev={sev} income=₹{inc} → ₹{r.claim_amount}  {r.explanation}")
+        print(f"  {t} sev={sev} income=INR {inc} -> INR {r.claim_amount}  {r.explanation}")

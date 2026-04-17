@@ -1,5 +1,5 @@
 """
-GigShield - Fraud Detection & Anti-Spoofing Model
+SecInsure - Fraud Detection & Anti-Spoofing Model
 Two-stage pipeline:
   Stage 1: Isolation Forest  → anomaly_score per claim (unsupervised)
   Stage 2: XGBoost Classifier → fraud_probability
@@ -26,9 +26,10 @@ from xgboost import XGBClassifier
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-IF_MODEL_PATH  = Path("models/fraud_isolation_forest.joblib")
-XGB_MODEL_PATH = Path("models/fraud_xgb.joblib")
-SCALER_PATH    = Path("models/fraud_scaler.joblib")
+MODEL_DIR      = Path(__file__).parent / "models"
+IF_MODEL_PATH  = MODEL_DIR / "fraud_isolation_forest.joblib"
+XGB_MODEL_PATH = MODEL_DIR / "fraud_xgb.joblib"
+SCALER_PATH    = MODEL_DIR / "fraud_scaler.joblib"
 
 STAGE1_FEATURES = [
     "gps_accuracy_m",

@@ -1,5 +1,5 @@
 """
-GigShield - Synthetic Training Data Generator
+SecInsure - Synthetic Training Data Generator
 
 Two models:
   1. Premium model  — what the worker pays weekly (based on income + zone + work type)
