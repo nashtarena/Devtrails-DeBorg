@@ -1411,6 +1411,12 @@ Year 2      Expand to Zomato, Zepto using same self-reported fallback
 
 ---
 
+### PITCH DECK
+
+https://drive.google.com/file/d/11X5YiwrqZLvJ2a-HrraWrtkI3qd8wKJL/view?usp=sharing
+
+---
+
 <div align="center">
 
 **Built for the 6.9 lakh delivery partners who make every meal possible.**
