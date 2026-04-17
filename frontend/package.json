@@ -1,6 +1,7 @@
 {
   "name": "secinsure-partner-app",
   "version": "1.0.0",
+  "type": "module",
   "main": "expo-router/entry",
   "scripts": {
     "dev": "vite",
@@ -28,6 +29,7 @@
     "expo": "^54.0.0",
     "expo-constants": "~18.0.10",
     "expo-linking": "~8.0.9",
+    "expo-location": "^55.1.8",
     "expo-router": "~6.0.15",
     "expo-status-bar": "~3.0.9",
     "nativewind": "^4.0.1",

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, ScrollView, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { Icon } from "../components/Icon";
 import { shadowSm } from "../constants/shadows";
 import { api, setToken } from "../lib/api";
@@ -21,8 +21,8 @@ const steps = [
   { id: "aadhaar", title: "Aadhaar Verification", subtitle: "Quick KYC via OTP", icon: "verified-user" },
   { id: "pan", title: "PAN Card", subtitle: "For tax purposes", icon: "credit-card" },
   { id: "upi", title: "UPI ID", subtitle: "For instant payouts", icon: "account-balance-wallet" },
-  { id: "confirm", title: "Confirmation", subtitle: "Review your details", icon: "check-circle" },
   { id: "plan", title: "Choose Your Plan", subtitle: "Select the coverage that fits you", icon: "shield" },
+  { id: "confirm", title: "Confirmation", subtitle: "Review your details", icon: "check-circle" },
 ];
 
 const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
@@ -32,6 +32,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
   const [error, setError] = useState("");
   const [mlPremium, setMlPremium] = useState<any>(null);
   const [premiumLoading, setPremiumLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [formData, setFormData] = useState({
     partnerId: "", mobile: "", otp: "", name: "", income: "", workType: "", location: "",
     aadhaar: "", aadhaarOtp: "", pan: "", upi: "", plan: "plus",
@@ -39,6 +40,53 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
 
   const current = steps[step];
   const progress = ((step + 1) / steps.length) * 100;
+
+  const detectLocation = async () => {
+    try {
+      setLocationLoading(true);
+
+      if (!navigator.geolocation) {
+        Alert.alert("Error", "Geolocation is not supported by your browser");
+        setLocationLoading(false);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+
+          try {
+            // Use reverse geocoding API to get city name from coordinates
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+            );
+            const data = await response.json();
+            const cityName = data.address?.city || data.address?.town || data.address?.region || "Unknown Location";
+            updateField("location", cityName);
+          } catch (err) {
+            Alert.alert("Error", "Could not determine your city from location");
+          } finally {
+            setLocationLoading(false);
+          }
+        },
+        (error) => {
+          let errorMessage = "Failed to detect location";
+          if (error.code === error.PERMISSION_DENIED) {
+            errorMessage = "Location permission was denied";
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            errorMessage = "Location information is unavailable";
+          } else if (error.code === error.TIMEOUT) {
+            errorMessage = "Location request timed out";
+          }
+          Alert.alert("Location Error", errorMessage);
+          setLocationLoading(false);
+        }
+      );
+    } catch (err: any) {
+      Alert.alert("Location Error", err.message || "Failed to detect location");
+      setLocationLoading(false);
+    }
+  };
 
   const next = async () => {
     setError("");
@@ -155,7 +203,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
             value={formData.partnerId}
             onChangeText={(value) => updateField("partnerId", value)}
             style={styles.textInput}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#cbd5e1"
           />
         );
       case "mobile":
@@ -171,7 +219,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
               style={styles.mobileInput}
               keyboardType="phone-pad"
               maxLength={10}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#cbd5e1"
             />
           </View>
         );
@@ -185,7 +233,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
               keyboardType="number-pad"
               maxLength={6}
               style={[styles.textInput, { textAlign: "center", fontSize: 24, fontWeight: "700", letterSpacing: 8 }]}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#cbd5e1"
             />
             <Text style={styles.otpHint}>
               Sent to +91 {formData.mobile || "XXXXXXXXXX"}
@@ -199,7 +247,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
             value={formData.name}
             onChangeText={(value) => updateField("name", value)}
             style={styles.textInput}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#cbd5e1"
           />
         );
       case "income":
@@ -213,7 +261,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
                 onChangeText={(value) => updateField("income", value)}
                 style={styles.incomeInput}
                 keyboardType="numeric"
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor="#cbd5e1"
               />
             </View>
             <Text style={styles.incomeHint}>Your premium will be calculated based on this</Text>
@@ -242,9 +290,19 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
       case "location":
         return (
           <View style={styles.locationSection}>
-            <TouchableOpacity style={styles.detectButton}>
-              <Icon name="location-on" size={20} color="#2563eb" />
-              <Text style={styles.detectButtonText}>Detect my location</Text>
+            <TouchableOpacity 
+              style={styles.detectButton}
+              onPress={detectLocation}
+              disabled={locationLoading}
+            >
+              {locationLoading ? (
+                <ActivityIndicator color="#2563eb" size="small" />
+              ) : (
+                <>
+                  <Icon name="location-on" size={20} color="#2563eb" />
+                  <Text style={styles.detectButtonText}>Detect my location</Text>
+                </>
+              )}
             </TouchableOpacity>
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
@@ -256,7 +314,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
               value={formData.location}
               onChangeText={(value) => updateField("location", value)}
               style={styles.textInput}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#cbd5e1"
             />
           </View>
         );
@@ -269,7 +327,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
               onChangeText={(value) => updateField("aadhaar", value)}
               style={styles.textInput}
               maxLength={14}
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor="#cbd5e1"
             />
             <Text style={styles.aadhaarHint}>An OTP will be sent to your Aadhaar-linked mobile</Text>
           </View>
@@ -282,7 +340,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
             onChangeText={(value) => updateField("pan", value.toUpperCase())}
             style={styles.panInput}
             maxLength={10}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#cbd5e1"
           />
         );
       case "upi":
@@ -292,7 +350,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
             value={formData.upi}
             onChangeText={(value) => updateField("upi", value)}
             style={styles.textInput}
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor="#cbd5e1"
           />
         );
       case "confirm":
@@ -327,23 +385,23 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
 
             <View style={styles.premiumCard}>
               {premiumLoading ? (
-                <ActivityIndicator color="#fff" style={{ marginVertical: 8 }} />
+                <ActivityIndicator color="#fff" style={{ marginVertical: 12 }} />
               ) : (
                 <>
-                  <Text style={styles.premiumLabel}>Your AI-Computed Weekly Premium</Text>
+                  <Text style={styles.premiumLabel}>YOUR AI-COMPUTED WEEKLY PREMIUM</Text>
                   <Text style={styles.premiumAmount}>
                     ₹{mlPremium?.weekly_premium_inr ?? "--"}
                   </Text>
                   {mlPremium && (
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
-                      <View style={{ backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
-                        <Text style={{ color: "#fff", fontSize: 11, fontWeight: "700" }}>{mlPremium.risk_tier} RISK</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 }}>
+                      <View style={{ backgroundColor: "rgba(255,255,255,0.25)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "800" }}>{mlPremium.risk_tier} RISK</Text>
                       </View>
                       <Text style={styles.premiumCoverage}>Based on your income & zone</Text>
                     </View>
                   )}
-                  <Text style={[styles.premiumCoverage, { marginTop: 8 }]}>
-                    Coverage: Weather, Traffic, AQI disruptions
+                  <Text style={[styles.premiumCoverage, { marginTop: 12 }]}>
+                    ✓ Weather • ✓ Traffic • ✓ AQI disruptions
                   </Text>
                 </>
               )}
@@ -419,7 +477,7 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={back} style={styles.backButton}>
-          <Icon name="arrow-back" size={22} color="#1f2937" />
+          <Icon name="arrow-back" size={24} color="#0f172a" />
         </TouchableOpacity>
         <View style={styles.progressBar}>
           <View style={[styles.progressFill, { width: `${progress}%` }]} />
@@ -451,11 +509,15 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
                 <Text style={styles.primaryButtonText}>
                   {step === steps.length - 1 ? "Activate Protection" : "Continue"}
                 </Text>
-                <Icon name="chevron-right" size={18} color="#ffffff" />
+                <Icon name="chevron-right" size={20} color="#ffffff" />
               </>
           }
         </TouchableOpacity>
-        {!!error && <Text style={{ color: "#ef4444", fontSize: 13, textAlign: "center", marginTop: 8 }}>{error}</Text>}
+        {!!error && (
+          <View style={{ backgroundColor: "#fee2e2", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, marginTop: 14, borderLeftWidth: 4, borderLeftColor: "#ef4444" }}>
+            <Text style={{ color: "#991b1b", fontSize: 13, fontWeight: "600", lineHeight: 18 }}>{error}</Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -464,12 +526,15 @@ const OnboardingFlow = ({ onComplete, onBack }: OnboardingFlowProps) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#f8fafc",
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
   backButton: {
     padding: 8,
@@ -477,93 +542,102 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   progressBar: {
-    marginTop: 12,
-    height: 6,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 3,
+    marginTop: 16,
+    height: 8,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 4,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
     backgroundColor: "#2563eb",
-    borderRadius: 3,
+    borderRadius: 4,
   },
   stepIndicator: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 8,
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 10,
+    fontWeight: "500",
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: 20,
+    paddingVertical: 32,
   },
   stepHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 8,
+    gap: 16,
+    marginBottom: 28,
   },
   stepIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: "#dbeafe",
     alignItems: "center",
     justifyContent: "center",
   },
   stepTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#0f172a",
   },
   stepSubtitle: {
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
   },
   stepContent: {
-    marginTop: 24,
+    marginTop: 12,
   },
   textInput: {
     width: "100%",
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
     fontSize: 16,
     fontWeight: "500",
-    color: "#111827",
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   inputRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
   },
   countryCode: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 14,
+    backgroundColor: "#f1f5f9",
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   countryCodeText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "700",
+    color: "#0f172a",
   },
   mobileInput: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
     fontSize: 16,
     fontWeight: "500",
-    color: "#111827",
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   otpSection: {
-    gap: 16,
+    gap: 18,
   },
   otpContainer: {
     flexDirection: "row",
@@ -571,198 +645,225 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   otpInput: {
-    width: 48,
-    height: 56,
+    width: 52,
+    height: 60,
     textAlign: "center",
-    fontSize: 20,
-    fontWeight: "700",
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
-    color: "#111827",
+    fontSize: 22,
+    fontWeight: "800",
+    borderRadius: 14,
+    backgroundColor: "#f1f5f9",
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   otpHint: {
     textAlign: "center",
-    fontSize: 12,
-    color: "#6b7280",
+    fontSize: 13,
+    color: "#64748b",
+    fontWeight: "500",
   },
   incomeSection: {
-    gap: 16,
+    gap: 18,
   },
   incomeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   rupeeSymbol: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#2563eb",
   },
   incomeInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
-    color: "#111827",
+    color: "#0f172a",
   },
   incomeHint: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#64748b",
+    fontWeight: "500",
   },
   workTypeContainer: {
-    gap: 12,
+    gap: 14,
   },
   workTypeOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: "#e2e8f0",
   },
   workTypeSelected: {
-    backgroundColor: "#dbeafe",
+    backgroundColor: "#eff6ff",
+    borderColor: "#2563eb",
   },
   workTypeTitle: {
     fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
+    fontWeight: "700",
+    color: "#0f172a",
   },
   workTypeSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "400",
-    color: "#6b7280",
-    marginTop: 2,
+    color: "#64748b",
+    marginTop: 6,
   },
   locationSection: {
-    gap: 12,
+    gap: 14,
   },
   detectButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#dbeafe",
+    borderRadius: 14,
+    backgroundColor: "#eff6ff",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    borderWidth: 2,
+    borderColor: "#bfdbfe",
   },
   detectButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
     color: "#2563eb",
   },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginVertical: 6,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: "#e2e8f0",
   },
   dividerText: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#94a3b8",
+    fontWeight: "600",
   },
   aadhaarSection: {
     gap: 16,
   },
   aadhaarHint: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#64748b",
+    fontWeight: "500",
   },
   panInput: {
     width: "100%",
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: "#f3f4f6",
+    borderRadius: 14,
+    backgroundColor: "#ffffff",
     fontSize: 16,
     fontWeight: "700",
-    color: "#111827",
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   confirmSection: {
-    gap: 16,
+    gap: 18,
   },
   confirmCard: {
     backgroundColor: "#ffffff",
     borderRadius: 16,
-    padding: 20,
-    gap: 12,
-    ...shadowSm,
+    padding: 24,
+    gap: 0,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   confirmRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
   },
   confirmLabel: {
     fontSize: 14,
-    color: "#6b7280",
+    color: "#64748b",
+    fontWeight: "600",
   },
   confirmValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
   },
   confirmDivider: {
     height: 1,
-    backgroundColor: "#e5e7eb",
+    backgroundColor: "#e2e8f0",
   },
   premiumCard: {
-    backgroundColor: "#2563eb",
+    backgroundColor: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
     borderRadius: 16,
-    padding: 20,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "#1e40af",
   },
   premiumLabel: {
     fontSize: 12,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.8)",
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
   },
   premiumAmount: {
-    fontSize: 32,
-    fontWeight: "800",
+    fontSize: 38,
+    fontWeight: "900",
     color: "#ffffff",
-    marginTop: 4,
+    marginTop: 8,
   },
   premiumCoverage: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 8,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 10,
+    fontWeight: "500",
   },
   footer: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 28,
     paddingTop: 16,
+    backgroundColor: "#ffffff",
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0",
   },
   primaryButton: {
     paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: 14,
     backgroundColor: "#2563eb",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
+    overflow: "hidden",
   },
   primaryButtonText: {
     color: "#ffffff",
     fontWeight: "700",
     fontSize: 16,
   },
-  planSection: { gap: 12 },
-  planCard: { borderWidth: 2, borderRadius: 16, padding: 16, position: "relative", overflow: "hidden" },
-  planBadge: { position: "absolute", top: 0, right: 0, paddingHorizontal: 10, paddingVertical: 4, borderBottomLeftRadius: 10 },
-  planBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-  planCardHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
-  planIconWrap: { width: 40, height: 40, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  planName: { fontSize: 16, fontWeight: "700" },
-  planPrice: { fontSize: 13, fontWeight: "600", marginTop: 2 },
-  planRadio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  planRadioFill: { width: 10, height: 10, borderRadius: 5 },
-  planPerks: { gap: 6 },
-  planPerkRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  planPerkText: { fontSize: 13, color: "#374151" },
+  planSection: { gap: 14 },
+  planCard: { borderWidth: 2, borderRadius: 16, padding: 20, position: "relative", overflow: "hidden", backgroundColor: "#ffffff" },
+  planBadge: { position: "absolute", top: 12, right: 12, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  planBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  planCardHeader: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 },
+  planIconWrap: { width: 44, height: 44, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  planName: { fontSize: 17, fontWeight: "800" },
+  planPrice: { fontSize: 14, fontWeight: "700", marginTop: 4 },
+  planRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  planRadioFill: { width: 11, height: 11, borderRadius: 5.5 },
+  planPerks: { gap: 8 },
+  planPerkRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  planPerkText: { fontSize: 13, color: "#475569", fontWeight: "500" },
 });
 
 export default OnboardingFlow;
